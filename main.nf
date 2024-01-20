@@ -7,15 +7,17 @@ include {PREDICT_DST as prd} from "$baseDir/workflows/clockwork/main"
 include {MTB_FINDER} from "$baseDir/workflows/myco_miner/main"
 
 include {TBPROFILER_PROFILE as tbp} from "$baseDir/workflows/tbprofiler/profile/main"
+include {TBPROFILER_PROFILE_EXTERNAL as tbp_ext} from "$baseDir/modules/tbprofiler_external/main"
 include {GENERATE_REPORT as grp} from "$baseDir/modules/utility/main"
 
 
 params.input_dir = ""
 
-def assets_dir = "${baseDir}/assets"
+def assets_dir = params.assets_dir ?:"${baseDir}/assets"
 def h37Rv_dir = "${assets_dir}/Ref.H37Rv";
-def out_dir = params.out_dir ?: "${baseDir}/out"
+def out_dir = params.out_dir
 def k2_db='k2_myco'
+
 workflow{
 
 
@@ -31,10 +33,21 @@ workflow{
     kraken2_db = "${assets_dir}/kraken2/${k2_db}"
     MTB_FINDER(reads_ch,kraken2_db)
     input_ch = MTB_FINDER.out.mtbs_ch
-    input_ch.view()
+  
    // Running TBPROFILER
-   tbpr_ch = input_ch.map{it->[[id:"${it[0]}.tbprofiler",single_end:false],it[1]]}
+   
+   tbpr_ch = input_ch.map{it->[[id:"${it[0]}.tbdb.tbprofiler",single_end:false],it[1]]}
    tbp(tbpr_ch)
+
+//    vcfs_wg = tbp.out.vcf.map{it->it[1]}
+//                         .flatten()
+//                         .filter( it -> !(it.getName() =~ /targets/) )
+//                         .map{it-> [[id:it.simpleName+".who2023.tbprofiler"],it]}
+//                         .combine(Channel.fromPath("${assets_dir}/catalogues/NC_000962.3/WHO-2023.5"))
+   tbp.out.bam.view() 
+   bam_ch = tbp.out.bam.map{it->[[id:"${it[1].simpleName}.who2023v5.tbprofiler"],it[1]]}
+                .combine(Channel.fromPath("${assets_dir}/catalogues/NC_000962.3/WHO-2023.5"))
+   tbp_ext(bam_ch)
 
    // Running CRyPTIC workflow
    contam_ref_ch = Channel.fromPath("${assets_dir}/Ref.remove_contam/*.tsv");
@@ -42,7 +55,7 @@ workflow{
    
    mpr(cryptic_ch) 
    rmc(mpr.out.sam.combine(contam_ref_ch))
-   vrc(rmc.out.reads,h37Rv_dir)
+   vrc(rmc.out.reads.combine(Channel.fromPath(h37Rv_dir)))
    
    
    vrc.out.final_vcf.map{it-> it[1]}.flatten().collectFile(storeDir:out_dir)
@@ -52,8 +65,8 @@ workflow{
 
    ch = vrc.out.final_vcf.combine(catalog_ch).combine(refpkl_ch)
            .map{it->[[id:it[1].simpleName,cat:it[2].simpleName],it[1],it[2],it[3]]}
+
    prd(ch)
-    
     
    ser_ch = prd.out.effects
           .concat(prd.out.mutations)
@@ -61,6 +74,7 @@ workflow{
           .concat(prd.out.json)
           .concat(tbp.out.txt)
           .concat(tbp.out.json)
+          .concat(tbp_ext.out.json)
           .map{it->it[1]}
           .concat(MTB_FINDER.out.species_tsvs)
           .flatten()

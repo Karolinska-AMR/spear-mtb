@@ -38,13 +38,13 @@ while getopts "t:c:a:p:o:f:" opt; do
       assets_dir=$(readlink -f "$OPTARG")
       ;;
     p)
-      prefix=$(readlink -f "$OPTARG")
+      prefix="$OPTARG"
       ;;
     o)
       out_dir=$(readlink -f "$OPTARG")
       ;;
     f)
-      profile=$(readlink -f "$OPTARG")
+      profile="$OPTARG"
       ;;  
     \?)
       echo "Invalid option: -$OPTARG" >&2
@@ -88,7 +88,7 @@ echo "Running SPEAR-MTB..."
 
 cd "$tmp_dir"
 source activate spear-mtb
-nextflow run "$SRC/main.nf" -profile "$profile" -c "$config_file" -w "$work_dir" --assets_dir $assets_dir --out_dir "$out_dir" --input_dir "$input_dir" -with-trace "$trace_file"
+nextflow run "$SRC/main.nf" -profile "$profile" -c "$config_file" -w "$work_dir" --assets_dir "$assets_dir" --out_dir "$out_dir" --input_dir "$input_dir" -with-trace "$trace_file" -resume
 
 echo ""
 echo "    ______ _         _        __               __"

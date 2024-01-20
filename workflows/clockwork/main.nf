@@ -51,8 +51,8 @@ process VARIANT_CALL {
         'ghcr.io/iqbal-lab-org/clockwork:latest' }"
 
     input:
-    tuple val(meta), path(reads)
-    val h37Rv_dir
+    tuple val(meta), path(reads), path(h37Rv_dir)
+   
        
 
     output:
@@ -63,7 +63,7 @@ process VARIANT_CALL {
     script:
      
     """
-     clockwork variant_call_one_sample --sample_name ${meta.id} $h37Rv_dir var_call ${reads[0]} ${reads[1]}
+     clockwork variant_call_one_sample --sample_name ${meta.id} ./Ref.H37Rv var_call ${reads[0]} ${reads[1]}
      cp ./var_call/final.vcf ${meta.id}.final.vcf
      cp ./var_call/samtools.vcf ${meta.id}.samtools.vcf
      cp ./var_call/cortex.vcf ${meta.id}.cortex.vcf
