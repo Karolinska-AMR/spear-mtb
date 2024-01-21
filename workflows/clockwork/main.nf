@@ -52,13 +52,18 @@ process VARIANT_CALL {
 
     input:
     tuple val(meta), path(reads), path(h37Rv_dir)
-   
+    val pub_dir
        
 
     output:
     tuple val(meta), path("*final.vcf"), emit: final_vcf
     tuple val(meta), path("*cortex.vcf"),optional:true, emit: cortex_vcf
     tuple val(meta), path("*samtools.vcf"),optional:true, emit: samtools_vcf
+
+    publishDir { "${pub_dir}/${meta.id.tokenize('.')[0]}/cryptic"},
+               mode: 'copy',
+               pattern: '*.vcf'
+
 
     script:
      
@@ -75,12 +80,17 @@ process PREDICT_DST{
 
     input:
     tuple val(meta), path(vcf), path(catalog), path(ref_pkl) 
+    val pub_dir
+    
     output:
     tuple val(meta), path("*.effects.csv"), emit: effects
     tuple val(meta), path("*.mutations.csv"),optional:true, emit: mutations
     tuple val(meta), path("*.variants.csv"),optional:true, emit: variants
     tuple val(meta), path("*.json"),optional:true, emit: json
 
+    publishDir { "${pub_dir}/${meta.id.tokenize('.')[0]}/cryptic"},
+               mode: 'copy',
+               pattern: '*.cryptic.*'
     script:
     
     """

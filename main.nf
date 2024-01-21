@@ -37,17 +37,11 @@ workflow{
    // Running TBPROFILER
    
    tbpr_ch = input_ch.map{it->[[id:"${it[0]}.tbdb.tbprofiler",single_end:false],it[1]]}
-   tbp(tbpr_ch)
-
-//    vcfs_wg = tbp.out.vcf.map{it->it[1]}
-//                         .flatten()
-//                         .filter( it -> !(it.getName() =~ /targets/) )
-//                         .map{it-> [[id:it.simpleName+".who2023.tbprofiler"],it]}
-//                         .combine(Channel.fromPath("${assets_dir}/catalogues/NC_000962.3/WHO-2023.5"))
-   tbp.out.bam.view() 
+   tbp(tbpr_ch,out_dir)
+  
    bam_ch = tbp.out.bam.map{it->[[id:"${it[1].simpleName}.who2023v5.tbprofiler"],it[1]]}
                 .combine(Channel.fromPath("${assets_dir}/catalogues/NC_000962.3/WHO-2023.5"))
-   tbp_ext(bam_ch)
+   tbp_ext(bam_ch,out_dir)
 
    // Running CRyPTIC workflow
    contam_ref_ch = Channel.fromPath("${assets_dir}/Ref.remove_contam/*.tsv");
@@ -55,10 +49,7 @@ workflow{
    
    mpr(cryptic_ch) 
    rmc(mpr.out.sam.combine(contam_ref_ch))
-   vrc(rmc.out.reads.combine(Channel.fromPath(h37Rv_dir)))
-   
-   
-   vrc.out.final_vcf.map{it-> it[1]}.flatten().collectFile(storeDir:out_dir)
+   vrc(rmc.out.reads.combine(Channel.fromPath(h37Rv_dir)),out_dir)
 
    catalog_ch = Channel.fromPath("${assets_dir}/catalogues/*/*.csv")
    refpkl_ch = Channel.fromPath("${assets_dir}/catalogues/*/*.gz")
@@ -66,22 +57,16 @@ workflow{
    ch = vrc.out.final_vcf.combine(catalog_ch).combine(refpkl_ch)
            .map{it->[[id:it[1].simpleName,cat:it[2].simpleName],it[1],it[2],it[3]]}
 
-   prd(ch)
+   prd(ch,out_dir)
     
-   ser_ch = prd.out.effects
-          .concat(prd.out.mutations)
-          .concat(prd.out.variants)
-          .concat(prd.out.json)
-          .concat(tbp.out.txt)
+   ser_ch = prd.out.json
           .concat(tbp.out.json)
           .concat(tbp_ext.out.json)
-          .map{it->it[1]}
-          .concat(MTB_FINDER.out.species_tsvs)
-          .flatten()
-          .collectFile(storeDir:out_dir)
+          
+    
 
     grp(ser_ch.collect(),"${assets_dir}/report/report-template.html")
-    grp.out.html.collectFile(storeDir:out_dir)
+    grp.out.html.collectFile(storeDir:"${out_dir}/reports")
 } 
 
 workflow generate_report{

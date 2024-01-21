@@ -1,6 +1,7 @@
 process TBPROFILER_PROFILE_EXTERNAL {
     tag "$meta.id"
     label 'process_medium'
+   
 
     container "${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?
         'https://depot.galaxyproject.org/singularity/tb-profiler:5.0.1--pyhdfd78af_1' :
@@ -9,13 +10,16 @@ process TBPROFILER_PROFILE_EXTERNAL {
 
     input:
     tuple val(meta), path(bam), path(db)
+    val pub_dir
 
     output:
-    tuple val(meta), path("results/*.csv") , emit: csv, optional: true
     tuple val(meta), path("results/*.json"), emit: json
-    tuple val(meta), path("results/*.txt") , emit: txt, optional: true
-    path "versions.yml"                    , emit: versions
+  
 
+    publishDir { "${pub_dir}/${meta.id.tokenize('.')[0]}/tbprofiler"},
+            mode: 'copy',
+            saveAs: { fn -> fn.tokenize('/')[-1] }
+    
     when:
     task.ext.when == null || task.ext.when
 
@@ -35,9 +39,5 @@ process TBPROFILER_PROFILE_EXTERNAL {
         --bam $bam \\
         --db \$db_pfx
 
-    cat <<-END_VERSIONS > versions.yml
-    "${task.process}":
-        tbprofiler:  \$( echo \$(tb-profiler --version 2>&1) | sed 's/TBProfiler version //')
-    END_VERSIONS
     """
 }
