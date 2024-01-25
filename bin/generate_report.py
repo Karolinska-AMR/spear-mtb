@@ -34,7 +34,10 @@ def convert_locusname(name):
 def gene_del_drugs(gene):
 
     mapper = {"katG": ["isoniazid"],
-              "pncA": ["pyrazinamide"]}
+              "pncA": ["pyrazinamide"],
+              "fgd1": ["delamanid"],
+              "ethA": ["ethionamide"]
+              }
     try:
         return mapper[gene]
     except KeyError:
@@ -45,14 +48,24 @@ def collect_tbprofilers(rep_dir, report_dict):
 
     # Extract tbprofiler dictionary
     tbp_out_lst = sorted(
-        # glob(os.path.join(rep_dir, "*tbprofiler.results.json")))
-        glob(os.path.join(rep_dir, "*results.json")))
-    catalog = "TB-Profiler"
+                 glob(os.path.join(rep_dir, "*.tbprofiler.results.json")))
+    
     for fj in tbp_out_lst:
         sid = os.path.basename(fj).split('.')[0]
+        cat = os.path.basename(fj).split('.')[1]
+       
+        if cat.startswith('who'):
+            catalog = "WHO-UCN-2023.5"
+        elif cat.startswith('tbdb'):
+            catalog = "TB-Profiler"
+        else:
+            catalog="unknown"
+
         if sid not in report_dict:
             report_dict[sid] = {"seqid": sid, "lineage": {},
-                                "res_var": {}, "other_var": {}, "valid": 1}
+                                "variants": [], "unverified_mutations": {},
+                                "del_genes": []}
+            
         ptr = report_dict[sid]
         with open(fj) as hdl:
             report_json = json.load(hdl)
@@ -63,43 +76,31 @@ def collect_tbprofilers(rep_dir, report_dict):
                     if len(report_json["lineage"]):
                         # selecting the last sublineage
                         ptr["lineage"] = report_json["lineage"][-1]
+                        ptr["lineage"]["is_mixed"] = False
                 elif len(pp) > 1:
-                    ptr["lineage"] = {"lin": report_json["main_lin"], "family": "Metagenomic sample: multiple lineages were detected.",
-                                      "spoligotype": "", "rd": "", "frac": ''}
-                    ptr["valid"] = 0
+                    ptr["lineage"] = {"lin": report_json["main_lin"], "family": None,
+                                      "spoligotype": None, "rd": None, "frac": None}
+                    ptr["lineage"]["is_mixed"] = True
+                  
 
-            ptr["res_var"][catalog] = {}
-            for rvr in report_json["dr_variants"]:
-                ptr_cat = ptr["res_var"][catalog]
-                for drg in rvr["drugs"]:
-                    if drg["drug"] not in ptr_cat:
-                        ptr_cat[drg["drug"]] = []
-                    ptr_cat[drg["drug"]].append(
-                        {"mutation": f"{rvr['gene']}@{rvr['change']}", "phenotype": "R", "freq": round(rvr['freq'], 2)})
-
+            ptr_var = ptr['variants']
+            variations = report_json["dr_variants"] +  report_json["other_variants"]
+            for rvr in variations:   
+                ptr_var.append({'catalog':catalog, "gene": rvr['gene'],"variant":rvr['change'],'freq':round(rvr['freq'], 2)})
+           
+           
             del_genes = get_gene_del(report_json["qc"]["region_qc"])
-            ptr["del_genes"] = {}
             ptr_dg = ptr["del_genes"]
             for gene, drugs in del_genes.items():
                 for drg in drugs:
                     if drg not in ptr_dg:
                         ptr_dg[drg] = []
-                    ptr_dg[drg].append(
-                        {"mutation": f"{gene}_deletion", "phenotype": "R"})
-
-            ptr["unverified_regions"] = list(get_unverfied_regions(
-                report_json["qc"]["missing_positions"], del_genes))
-
-            if catalog not in ptr["other_var"]:
-                ptr["other_var"][catalog] = {}
-            ptr_cat = ptr["other_var"][catalog]
-
-            for ovr in report_json["other_variants"]:
-                for drg in ovr["gene_associated_drugs"]:
-                    if drg not in ptr_cat:
-                        ptr_cat[drg] = []
-                    ptr_cat[drg].append(
-                        {"mutation": f"{ovr['gene']}@{ovr['change']}", "phenotype": 'U', "freq": round(ovr['freq'], 2)})
+                    ptr_dg.append({'catalog':catalog, "gene": gene,"variant":"feature_ablation",'freq':None})
+            
+            
+            ptr['unverified_mutations'] = get_unverfied_regions(ptr['unverified_mutations'],
+                                  report_json["qc"]["missing_positions"],
+                                  del_genes,catalog)
 
     return report_dict
 
@@ -115,34 +116,34 @@ def get_gene_del(region_qc):
     return del_genes
 
 
-def get_unverfied_regions(missing_pos, missing_genes):
-    unverified_variants = {}
+def get_unverfied_regions( unverified_variants, missing_pos, missing_genes,catalog):
     ctrl_rec = set()
     for pos in missing_pos:
         gene = pos['gene']
         locus = pos['locus_tag']
-        drugs = pos['drugs'].split(',')
+        # drugs = pos['drugs'].split(',')
         variants = pos['variants'].split(',')
         is_deleted = False
         if gene in missing_genes:
             is_deleted = True
-            variants = [
-                f"Deleted locus/gene: all its potential variations."]
+            variants = [f"feature_ablation"]
 
-        for drg in drugs:
+        # for drg in drugs:
+        if is_deleted:
+            key = f"{gene}"
+            if key in ctrl_rec:
+                continue
+            ctrl_rec.add(key)
 
-            if is_deleted:
-                key = f"{drg}_{gene}"
-                if key in ctrl_rec:
-                    continue
-                ctrl_rec.add(key)
-
-            for var in variants:
-                key = f"{drg}_{gene}_{var}"
-                if key not in unverified_variants:
-                    unverified_variants[key] = (
-                        {"drug": drg,  "gene": gene, "locus": locus, "mutation": var})
-    return list(unverified_variants.values())
+        for var in variants:
+            #it's deletion, not missing R
+            if var.find('del')>-1:
+                continue
+            key = f"{gene}_{var}"
+            if key not in unverified_variants:
+                unverified_variants[key] = (
+                    {'catalog':catalog,'position':pos['position'], "gene": gene, "locus": locus, "variant": var})
+    return unverified_variants
 
 
 def collect_cryptics(rep_dir, report_dict):
@@ -153,17 +154,19 @@ def collect_cryptics(rep_dir, report_dict):
         catalog = os.path.basename(fj).split('.')[1]
 
         if sid not in report_dict:
-            report_dict[sid] = {"seqid": sid,
-                                "lineage": {}, "res_var": {}, "other_var": {}}
+            report_dict[sid] = {"seqid": sid, "lineage": {},
+                                "variants": [], "unverified_mutations": {},
+                                "del_genes": []}
+            
         ptr = report_dict[sid]
         with open(fj) as hdl:
             res_dict = json.load(hdl)
             res_dict = res_dict["data"]
 
-        if catalog not in ptr["res_var"]:
-            ptr["res_var"][catalog] = {}
-        ptr_cat = ptr["res_var"][catalog]
-
+        # if catalog not in ptr["res_var"]:
+        #     ptr["res_var"][catalog] = {}
+        # ptr_cat = ptr["res_var"][catalog]
+        ptr_var = ptr['variants']
         if "EFFECTS" in res_dict:
             for drg, mut_list in res_dict["EFFECTS"].items():
                 drg = convert_drugname(drg)
@@ -173,19 +176,11 @@ def collect_cryptics(rep_dir, report_dict):
                     if "PHENOTYPE" in mut:
                         continue
 
-                    if mut['PREDICTION'] == "S":
-                        if catalog not in ptr["other_var"]:
-                            ptr["other_var"][catalog] = {}
-                        tptr = ptr["other_var"][catalog]
-                        if drg not in tptr:
-                            tptr[drg] = []
-                        tptr[drg].append(
-                            {"mutation": f"{mut['GENE']}@{mut['MUTATION']}", "phenotype": 'S'})
-                    else:
-                        if drg not in ptr_cat:
-                            ptr_cat[drg] = []
-                        ptr_cat[drg].append(
-                            {"mutation": f"{mut['GENE']}@{mut['MUTATION']}", "phenotype": mut['PREDICTION']})
+                    if mut['PREDICTION'] != "S":               
+                        ptr_var.append({'catalog':catalog, "gene": mut['GENE'],
+                                        "variant":f"{mut['GENE']}@{mut['MUTATION']}",
+                                                'freq':None})
+                            
 
     return report_dict
 
@@ -194,17 +189,10 @@ def generate(in_dir, template):
     report_dict = {}
     collect_tbprofilers(in_dir, report_dict)
     collect_cryptics(in_dir, report_dict)
-    djson = json.dumps(report_dict)
-    report_lines = []
-    with open(template) as hdl:
-        for ll in hdl:
-            if ll.find('<!--DATASLOT-->') > -1:
-                ll = f"<script>let djson={djson}</script>\n"
-            report_lines.append(ll)
-    dt_tag = datetime.now().strftime("%y%m%d-%H%M%S")
-    with open(f"spear-mtb_report_{dt_tag}.html", 'w') as hdl:
-        hdl.write(''.join(report_lines))
+    djson = json.dumps(report_dict)  
 
+    with open(f"spear-mtb_report_summary.json",'w') as hdl:
+        hdl.write(djson)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
