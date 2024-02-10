@@ -14,7 +14,7 @@ def convert_drugname(abbr):
                    "MXF": "MOXIFLOXACIN", "OFX": "OFLOXACIN", "PAN": "PRETOMANID", "PAS": "PAS", "PTO": "PROTHIONAMIDE", "PZA": "PYRAZINAMIDE", "RFB": "RIFABUTIN",
                    "RIF": "RIFAMPICIN", "STM": "STREPTOMYCIN", "STX": "SITAFLOXACIN", "SXT": "COTRIMOXAZOLE", "SZD": "SUTEZOLID", "TRD": "TERIZIDONE", "TZE": "THIOACETAZONE"}
     try:
-        return drug_mapper[abbr].lower()
+        return drug_mapper[abbr]
     except KeyError:
         return abbr
 
@@ -44,63 +44,106 @@ def gene_del_drugs(gene):
         return []
 
 
+def get_base_dict(sample_id):
+
+    return {
+        "seqid": sample_id,
+        "category": None,
+        "tbprofiler": False,
+        "cryptic": False,
+        "pct_mapped_reads": None,
+        "num_mapped_reads": None,
+        "region_median_depth": None,
+        "genome_median_depth": None,
+        "lineage": {},
+        "variants": [],
+        "unverified_mutations": {},
+        "del_genes": [],
+        "resist_drug": {}
+    }
+
 def collect_tbprofilers(rep_dir, report_dict):
 
     # Extract tbprofiler dictionary
     tbp_out_lst = sorted(
-                 glob(os.path.join(rep_dir, "*.tbprofiler.results.json")))
-    
+        glob(os.path.join(rep_dir, "*.tbprofiler.results.json")))
+
     for fj in tbp_out_lst:
         sid = os.path.basename(fj).split('.')[0]
         cat = os.path.basename(fj).split('.')[1]
-       
+
         if cat.startswith('who'):
             catalog = "WHO-UCN-2023.5"
         elif cat.startswith('tbdb'):
             catalog = "TB-Profiler"
+        elif cat.lower().startswith('cryptic'):
+            catalog = 'CRYPTIC'
         else:
-            catalog="unknown"
+            catalog = "unknown"
 
         if sid not in report_dict:
-            report_dict[sid] = {"seqid": sid, "lineage": {},
-                                "variants": [], "unverified_mutations": {},
-                                "del_genes": []}
-            
+            report_dict[sid] = get_base_dict(sid)
+
         ptr = report_dict[sid]
+        ptr["tbprofiler"] = True
         with open(fj) as hdl:
             report_json = json.load(hdl)
-            # Directly extracting the sublineage
+            if "qc" in report_json:
+                ptr_qc = report_json["qc"]
+                ptr["pct_mapped_reads"] = ptr_qc["pct_reads_mapped"]
+                ptr["num_mapped_reads"] = ptr_qc["num_reads_mapped"]
+                ptr["region_median_depth"] = ptr_qc["region_median_depth"]
+                ptr["genome_median_depth"] = ptr_qc["genome_median_depth"]
+
             if "main_lin" in report_json:
-                pp = report_json["main_lin"].split(';')
-                if len(pp) == 1:
-                    if len(report_json["lineage"]):
-                        # selecting the last sublineage
-                        ptr["lineage"] = report_json["lineage"][-1]
-                        ptr["lineage"]["is_mixed"] = False
-                elif len(pp) > 1:
-                    ptr["lineage"] = {"lin": report_json["main_lin"], "family": None,
-                                      "spoligotype": None, "rd": None, "frac": None}
-                    ptr["lineage"]["is_mixed"] = True
-                  
+
+                tmp_ptr = {"lin": [], "family": [],
+                                      "spoligotype": [], "rd": [], "frac": [], }
+
+                prv_lin = ""
+                lineages = sorted(
+                    report_json["lineage"], key=lambda x: x['lin'])
+                for lng in lineages[::-1]:
+                    if not prv_lin.startswith(lng['lin']):
+                        tmp_ptr['frac'].append(round(lng['frac'], 2))
+                        tmp_ptr['lin'].append(lng['lin'])
+                        tmp_ptr['family'].append(lng['family'])
+                        tmp_ptr['spoligotype'].append(lng['spoligotype'])
+                        tmp_ptr['rd'].append(lng['rd'])
+                    prv_lin = lng['lin']
+
+                is_mixed = len(tmp_ptr["lin"]) > 1
+                for k, v in tmp_ptr.items():
+                    tmp_ptr[k] = '|'.join(map(str, v)).replace('None', '')
+                tmp_ptr["is_mixed"] = is_mixed
+                ptr['lineage'] = tmp_ptr
 
             ptr_var = ptr['variants']
-            variations = report_json["dr_variants"] +  report_json["other_variants"]
-            for rvr in variations:   
-                ptr_var.append({'catalog':catalog, "gene": rvr['gene'],"variant":rvr['change'],'freq':round(rvr['freq'], 2)})
-           
-           
+            variations = report_json["dr_variants"] + \
+                report_json["other_variants"]
+            for rvr in variations:
+                ptr_var.append({'catalog': catalog, "gene": rvr['gene'], "variant": rvr['change'],
+                                'freq': round(rvr['freq'], 2), 'depth': rvr['depth']})
+                if "drugs" in rvr:
+                    for drg in rvr["drugs"]:
+                        if drg["confers"].startswith('resistance'):
+                            name = str(drg["drug"]).upper()
+                            if name not in ptr['resist_drug']:
+                                ptr['resist_drug'][name] = set()
+                            ptr['resist_drug'][name].add(catalog)
+
             del_genes = get_gene_del(report_json["qc"]["region_qc"])
             ptr_dg = ptr["del_genes"]
             for gene, drugs in del_genes.items():
                 for drg in drugs:
                     if drg not in ptr_dg:
                         ptr_dg[drg] = []
-                    ptr_dg.append({'catalog':catalog, "gene": gene,"variant":"feature_ablation",'freq':None})
-            
-            
+                    ptr_dg.append({'catalog': catalog, "gene": gene,
+                                  "variant": "feature_ablation", 'freq': None})
+
             ptr['unverified_mutations'] = get_unverfied_regions(ptr['unverified_mutations'],
-                                  report_json["qc"]["missing_positions"],
-                                  del_genes,catalog)
+                                                                report_json["qc"]["missing_positions"],
+                                                                del_genes, catalog)
 
     return report_dict
 
@@ -116,7 +159,7 @@ def get_gene_del(region_qc):
     return del_genes
 
 
-def get_unverfied_regions( unverified_variants, missing_pos, missing_genes,catalog):
+def get_unverfied_regions(unverified_variants, missing_pos, missing_genes, catalog):
     ctrl_rec = set()
     for pos in missing_pos:
         gene = pos['gene']
@@ -136,13 +179,13 @@ def get_unverfied_regions( unverified_variants, missing_pos, missing_genes,catal
             ctrl_rec.add(key)
 
         for var in variants:
-            #it's deletion, not missing R
-            if var.find('del')>-1:
+            # it's deletion, not missing R
+            if var.find('del') > -1:
                 continue
             key = f"{gene}_{var}"
             if key not in unverified_variants:
                 unverified_variants[key] = (
-                    {'catalog':catalog,'position':pos['position'], "gene": gene, "locus": locus, "variant": var})
+                    {'catalog': catalog, 'position': pos['position'], "gene": gene, "locus": locus, "variant": var})
     return unverified_variants
 
 
@@ -154,18 +197,14 @@ def collect_cryptics(rep_dir, report_dict):
         catalog = os.path.basename(fj).split('.')[1]
 
         if sid not in report_dict:
-            report_dict[sid] = {"seqid": sid, "lineage": {},
-                                "variants": [], "unverified_mutations": {},
-                                "del_genes": []}
-            
+            report_dict[sid] = get_base_dict(sid)
+
         ptr = report_dict[sid]
+        ptr["cryptic"] = True
         with open(fj) as hdl:
             res_dict = json.load(hdl)
             res_dict = res_dict["data"]
 
-        # if catalog not in ptr["res_var"]:
-        #     ptr["res_var"][catalog] = {}
-        # ptr_cat = ptr["res_var"][catalog]
         ptr_var = ptr['variants']
         if "EFFECTS" in res_dict:
             for drg, mut_list in res_dict["EFFECTS"].items():
@@ -176,31 +215,87 @@ def collect_cryptics(rep_dir, report_dict):
                     if "PHENOTYPE" in mut:
                         continue
 
-                    if mut['PREDICTION'] != "S":               
-                        ptr_var.append({'catalog':catalog, "gene": mut['GENE'],
-                                        "variant":f"{mut['GENE']}@{mut['MUTATION']}",
-                                                'freq':None})
-                            
+                    if mut['PREDICTION'] != "S":
+                        ptr_var.append({'catalog': catalog, "gene": mut['GENE'],
+                                        "variant": f"{mut['GENE']}@{mut['MUTATION']}",
+                                        'freq': None})
+
+                        if mut['PREDICTION'] == "R":
+                            if drg not in ptr['resist_drug']:
+                                ptr['resist_drug'][drg] = set()
+                            ptr['resist_drug'][drg].add(catalog)
 
     return report_dict
 
 
-def generate(in_dir, template):
+def classify_tb_resistance(resistant_drugs):
+
+    if len(resistant_drugs) == 0:
+        return 'DS'
+
+    # Define the key drugs for various TB resistance categories
+    first_line_drugs = {'ISONIAZID', 'RIFAMPICIN',
+                        'ETHAMBUTOL', 'PYRAZINAMIDE'}
+    second_line_injectables = {'AMIKACIN', 'KANAMYCIN', 'CAPREOMYCIN'}
+    fluoroquinolones = {'FLUOROQUINOLONE', 'MOXIFLOXACIN', 'OFLOXACIN',
+                        'LEVOFLOXACIN', 'GATIFLOXACIN', 'CIPROFLOXACIN', 'SITAFLOXACIN'}
+    group_A = {'MOXIFLOXACIN', 'LEVOFLOXACIN', 'BEDAQUILINE', 'LINEZOLID'}
+    # Check for various resistance types
+    is_INH_resistant = 'ISONIAZID' in resistant_drugs
+    is_RIF_resistant = 'RIFAMPICIN' in resistant_drugs
+    is_first_line_resistant = first_line_drugs.intersection(resistant_drugs)
+    is_second_line_injectable_resistant = second_line_injectables.intersection(
+        resistant_drugs)
+    is_fluoroquinolone_resistant = fluoroquinolones.intersection(
+        resistant_drugs)
+    is_group_a_resistant = group_A.intersection(resistant_drugs)
+
+    if len(is_first_line_resistant) == 1:
+        # Resistance to a single first-line anti-TB drug
+        return 'Mono'
+    elif is_INH_resistant and is_RIF_resistant:
+        if is_fluoroquinolone_resistant:
+            if is_group_a_resistant:
+                return 'XDR'
+            return 'Pre-XDR'
+        return 'MDR'
+    # elif is_INH_resistant and not is_RIF_resistant:
+    #     return 'IR'
+    # elif is_RIF_resistant and not is_INH_resistant:
+    #     return 'RR'
+    elif len(is_first_line_resistant) >= 2:
+        return 'Poly'
+    # elif is_INH_resistant or is_RIF_resistant:
+    #     return 'Pre-MDR'
+    else:
+        return 'other'
+
+
+
+def generate(in_dir, prefix):
     report_dict = {}
     collect_tbprofilers(in_dir, report_dict)
     collect_cryptics(in_dir, report_dict)
-    djson = json.dumps(report_dict)  
 
-    with open(f"spear-mtb_report_summary.json",'w') as hdl:
+    for sid, content in report_dict.items():
+        report_dict[sid]['category'] = classify_tb_resistance(
+            list(content['resist_drug'].keys()))
+        report_dict[sid]['resist_drug'] = list(content['resist_drug'])
+
+    djson = json.dumps(report_dict)
+
+    with open(f"{prefix}_summary.json", 'w') as hdl:
         hdl.write(djson)
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--in_dir", required=True,
                         help="Iput directory containing results of ")
-    parser.add_argument("--html", required=True,
-                        help="The report html template")
+
+    parser.add_argument("--prefix", required=True,
+                        help="Ticket number")
 
     options = parser.parse_args()
 
-    generate(options.in_dir, options.html)
+    generate(options.in_dir, options.prefix)

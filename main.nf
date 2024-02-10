@@ -61,16 +61,10 @@ workflow{
     
    ser_ch = prd.out.json
           .concat(tbp.out.json)
-          .concat(tbp_ext.out.json)
+          .concat(tbp_ext.out.json).map{it->it[1]}.flatten()
           
     
 
-    grp(ser_ch.collect(),"${assets_dir}/report/report-template.html")
-    grp.out.html.collectFile(storeDir:"${out_dir}/reports")
+    grp(ser_ch.collect(),params.prefix)
+    grp.out.json.collectFile(storeDir:"${out_dir}/reports")
 } 
-
-workflow generate_report{
-    json_ch = Channel.fromPath("${out_dir}/*.json").collect()
-    grp(json_ch,"${assets_dir}/report/report-template.html")
-    grp.out.html.collectFile(storeDir:out_dir)
-}

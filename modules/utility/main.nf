@@ -2,13 +2,11 @@ process GENERATE_REPORT{
   
     input:
      path pip_out
-     path html
-
+     val prefix
     output:
-    path("spear-mtb*.html"), emit: html
-    
+     path("${prefix}*.json"), emit: json
     script:
     """
-     python ${baseDir}/bin/generate_report.py --in_dir . --html $html
+     python ${baseDir}/bin/generate_report.py --in_dir .  --prefix $prefix
     """
 }
