@@ -1,7 +1,10 @@
  process MAP_READS {
     tag "$meta.id"
     label 'process_medium'
-    errorStrategy 'ignore'
+    
+    memory { 5.GB * task.attempt }
+	maxRetries 3
+	errorStrategy { task.exitStatus in 137..140 ? 'retry' : 'ignore' }
 
     container "${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?
         'https://github.com/iqbal-lab-org/clockwork/releases/download/v0.11.3/clockwork_v0.11.3.img':
@@ -45,6 +48,10 @@ process REMOVE_CONTAM {
 process VARIANT_CALL {
     tag "$meta.id"
     label 'process_medium'
+
+    memory { 5.GB * task.attempt }
+	maxRetries 3
+	errorStrategy { task.exitStatus in 137..140 ? 'retry' : 'ignore' }
    
     container "${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?
         'https://github.com/iqbal-lab-org/clockwork/releases/download/v0.11.3/clockwork_v0.11.3.img':
