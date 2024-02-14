@@ -51,7 +51,7 @@ workflow{
 //    mpr(cryptic_ch) 
 //    rmc(mpr.out.sam.combine(contam_ref_ch))
 
-   cryptic_ch =  input_ch.combine(contam_ref_ch).combine(ref_fa).map{it->[[id:"${it[0]}.cryptic"],it[1],it[2]]}
+   cryptic_ch =  input_ch.combine(contam_ref_ch).combine(ref_fa).map{it->[[id:"${it[0]}.cryptic"],it[1],it[2],it[3]]}
    rmc_mrg(cryptic_ch)
 
    vrc(rmc_mrg.out.reads.combine(Channel.fromPath(h37Rv_dir)),out_dir)
