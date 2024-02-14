@@ -2,6 +2,7 @@ nextflow.enable.dsl=2
 
 include {MAP_READS as mpr} from "$baseDir/workflows/clockwork/main"
 include {REMOVE_CONTAM as rmc} from "$baseDir/workflows/clockwork/main"
+include {REMOVE_CONTAM_MERGED as rmc_mrg} from "$baseDir/workflows/clockwork/main"
 include {VARIANT_CALL as vrc} from "$baseDir/workflows/clockwork/main"
 include {PREDICT_DST as prd} from "$baseDir/workflows/clockwork/main"
 include {MTB_FINDER} from "$baseDir/workflows/myco_miner/main"
@@ -9,7 +10,7 @@ include {MTB_FINDER} from "$baseDir/workflows/myco_miner/main"
 include {TBPROFILER_PROFILE as tbp} from "$baseDir/workflows/tbprofiler/profile/main"
 include {TBPROFILER_PROFILE_EXTERNAL as tbp_ext} from "$baseDir/modules/tbprofiler_external/main"
 include {GENERATE_REPORT as grp} from "$baseDir/modules/utility/main"
-
+include {ARCHIVE_RAW_SEQ as arch} from "$baseDir/modules/utility/main"
 
 params.input_dir = ""
 
@@ -45,11 +46,15 @@ workflow{
 
    // Running CRyPTIC workflow
    contam_ref_ch = Channel.fromPath("${assets_dir}/Ref.remove_contam/*.tsv");
-   cryptic_ch =  input_ch.combine(ref_fa).map{it->[[id:"${it[0]}.cryptic"],it[1],it[2]]}
-   
-   mpr(cryptic_ch) 
-   rmc(mpr.out.sam.combine(contam_ref_ch))
-   vrc(rmc.out.reads.combine(Channel.fromPath(h37Rv_dir)),out_dir)
+
+//    cryptic_ch =  input_ch.combine(ref_fa).map{it->[[id:"${it[0]}.cryptic"],it[1],it[2]]}  
+//    mpr(cryptic_ch) 
+//    rmc(mpr.out.sam.combine(contam_ref_ch))
+
+   cryptic_ch =  input_ch.combine(contam_ref_ch).combine(ref_fa).map{it->[[id:"${it[0]}.cryptic"],it[1],it[2]]}
+   rmc_mrg(cryptic_ch)
+
+   vrc(rmc_mrg.out.reads.combine(Channel.fromPath(h37Rv_dir)),out_dir)
 
    catalog_ch = Channel.fromPath("${assets_dir}/catalogues/*/*.csv")
    refpkl_ch = Channel.fromPath("${assets_dir}/catalogues/*/*.gz")
@@ -63,8 +68,11 @@ workflow{
           .concat(tbp.out.json)
           .concat(tbp_ext.out.json).map{it->it[1]}.flatten()
           
-    
+    // Archive the successfully executed Illumina PE-reads
+    arc_ch = input_ch.join(prd.out.json.concat(tbp.out.json).map{it-> it[0].id.split("\\.")[0]})
 
-    grp(ser_ch.collect(),params.prefix)
+    arch(arc_ch,params.archive,'mv')
+
+    grp(ser_ch.collect(),params.ticket)
     grp.out.json.collectFile(storeDir:"${out_dir}/reports")
 } 

@@ -33,16 +33,20 @@ process REMOVE_CONTAM {
 
     input:
     tuple val(meta), path(in_sam), path(ref_tsv)
-       
-
+    
     output:
     tuple val(meta), path("*{1,2}.fq.gz"), emit: reads
     tuple val(meta), path("*.counts.tsv"), emit: tsv
-
+    
     script:
-     
+     def clean_now = task.ext.clean ? false : true
     """
      clockwork remove_contam $ref_tsv $in_sam ${meta.id}.decontam.counts.tsv ${meta.id}.decontam_1.fq.gz ${meta.id}.decontam_2.fq.gz
+    
+      ##  reshub addition, free the SSD disk ASAP
+      if [[ ${params.clean_now} == true ]]; then
+        rm \$(readlink ${in_sam})
+      fi
     """
 }
 process VARIANT_CALL {
@@ -60,7 +64,7 @@ process VARIANT_CALL {
     input:
     tuple val(meta), path(reads), path(h37Rv_dir)
     val pub_dir
-       
+         
 
     output:
     tuple val(meta), path("*final.vcf"), emit: final_vcf
@@ -73,12 +77,18 @@ process VARIANT_CALL {
 
 
     script:
-     
+     def clean_now = task.ext.clean ? false : true
     """
      clockwork variant_call_one_sample --sample_name ${meta.id} ./Ref.H37Rv var_call ${reads[0]} ${reads[1]}
      cp ./var_call/final.vcf ${meta.id}.final.vcf
      cp ./var_call/samtools.vcf ${meta.id}.samtools.vcf
      cp ./var_call/cortex.vcf ${meta.id}.cortex.vcf
+
+      ##  reshub addition, free the SSD disk ASAP
+     if [[ ${params.clean_now} == true ]]; then
+        rm \$(readlink ${reads[0]})
+        rm \$(readlink ${reads[1]})
+     fi
     """
 }
 process PREDICT_DST{

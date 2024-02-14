@@ -1,7 +1,9 @@
 process TBPROFILER_PROFILE_EXTERNAL {
     tag "$meta.id"
     label 'process_medium'
-   
+    memory { 5.GB * task.attempt }
+	maxRetries 3
+	errorStrategy { task.exitStatus in 137..140 ? 'retry' : 'ignore' }
 
     container "${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?
         'https://depot.galaxyproject.org/singularity/tb-profiler:5.0.1--pyhdfd78af_1' :

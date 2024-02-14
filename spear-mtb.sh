@@ -16,20 +16,19 @@ SRC="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 PSRC=$(cd "$SRC/.." && pwd)
 
 # default values
-tmp_dir="$PSRC/.tmp/"
+work_dir="$PSRC/.tmp/"
 config_file="$SRC/nextflow.config"
 assets_dir="$SRC/assets" 
 out_dir="$PSRC/out"
 profile='slurm'
+archive_dir="$out_dir/raw_seqs"
 
-# Set a default prefix for the nextflow trace report
-default_prefix="$out_dir/$(date +'%y%m%d-%H%M%S')"
 
 # Parse user-defined parameters
-while getopts "t:c:a:p:o:f:" opt; do
+while getopts "w:c:a:t:o:f:v:" opt; do
   case $opt in
-    t)
-      tmp_dir=$(readlink -f "$OPTARG")
+    w)
+      work_dir=$(readlink -f "$OPTARG")
       ;;
     c)
       config_file=$(readlink -f "$OPTARG")
@@ -37,8 +36,8 @@ while getopts "t:c:a:p:o:f:" opt; do
     a)
       assets_dir=$(readlink -f "$OPTARG")
       ;;
-    p)
-      prefix="$OPTARG"
+    t)
+      ticket="$OPTARG"
       ;;
     o)
       out_dir=$(readlink -f "$OPTARG")
@@ -46,6 +45,9 @@ while getopts "t:c:a:p:o:f:" opt; do
     f)
       profile="$OPTARG"
       ;;  
+    v)
+      archive_dir=$(readlink -f "$OPTARG")
+    ;;
     \?)
       echo "Invalid option: -$OPTARG" >&2
       exit 1
@@ -53,42 +55,52 @@ while getopts "t:c:a:p:o:f:" opt; do
   esac
 done
 
-work_dir="$tmp_dir/work"
+work_dir="$work_dir/$ticket"
 if [ ! -d "$work_dir" ]; then
     mkdir -p "$work_dir"
+fi
+
+trace_dir="$out_dir/traces"
+if [ ! -d "$trace_dir" ]; then
+    mkdir -p "$trace_dir"
 fi
 
 shift "$((OPTIND - 1))"
 
 # Check if the input is provided
 if [ "$#" -ne 1 ]; then
-  echo "Usage: ./spear-mtb.sh [-t tmp_dir] [-c config_file] [-a assets_dir] [-p prefix] [-f profile] [-o out_dir] input_directory"
+  echo "Usage: ./spear-mtb.sh [-w work_dir] [-c config_file] [-a assets_dir] [-t ticket] [-f profile] [-o out_dir] [-v archive_dir] input_directory"
   exit 1
 fi
 
 input_dir=$(readlink -f "$1")
 
-if [ -z "$prefix" ]; then
-  prefix="$default_prefix"
+# Set a default ticket for the nextflow trace report
+default_ticket="$out_dir/$(date +'%y%m%d-%H%M%S')"
+
+if [ -z "$ticket" ]; then
+  ticket="$default_ticket"
 fi
 
-trace_file="${prefix}_trace.txt"
+trace_file="$trace_dir/${ticket}.trace"
+log_file="$trace_dir/${ticket}.log"
 
 echo "Using the following parameters:"
 echo "  -Input directory: $input_dir"
 echo "  -Output directory: $out_dir"
+echo "  -Archive [PE-reads] directory: $archive_dir"
 echo "  -Config file: $config_file"
 echo "  -Assets directory: $assets_dir"
 echo "  -Trace file: $trace_file"
-echo "  -Temporary directory: $tmp_dir"
+echo "  -Work directory: $work_dir"
 echo "  -Profile: $profile"
 echo "----------------------"
 
 echo "Running SPEAR-MTB..."
 
-cd "$tmp_dir"
-source activate spear-mtb
-nextflow run "$SRC/main.nf" -profile "$profile" -c "$config_file" -w "$work_dir" --assets_dir "$assets_dir" --out_dir "$out_dir" --input_dir "$input_dir" -with-trace "$trace_file" -resume
+cd "$work_dir"
+
+nice -5 nextflow run "$SRC/main.nf" -profile "$profile" -c "$config_file" -w "$work_dir" --assets_dir "$assets_dir" --out_dir "$out_dir" --archive "$archive_dir" --input_dir "$input_dir" --ticket "$ticket" -with-trace "$trace_file" > "$log_file"
 
 echo ""
 echo "    ______ _         _        __               __"

@@ -136,8 +136,6 @@ def collect_tbprofilers(rep_dir, report_dict):
             ptr_dg = ptr["del_genes"]
             for gene, drugs in del_genes.items():
                 for drg in drugs:
-                    if drg not in ptr_dg:
-                        ptr_dg[drg] = []
                     ptr_dg.append({'catalog': catalog, "gene": gene,
                                   "variant": "feature_ablation", 'freq': None})
 
@@ -284,7 +282,7 @@ def generate(in_dir, prefix):
 
     djson = json.dumps(report_dict)
 
-    with open(f"{prefix}_summary.json", 'w') as hdl:
+    with open(f"{prefix}.json", 'w') as hdl:
         hdl.write(djson)
 
 
