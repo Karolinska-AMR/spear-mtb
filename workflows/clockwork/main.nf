@@ -49,6 +49,40 @@ process REMOVE_CONTAM {
       fi
     """
 }
+process REMOVE_CONTAM_MERGED{
+    tag "$meta.id"
+    label 'process_medium'
+    
+    memory { 5.GB * task.attempt }
+	maxRetries 3
+	errorStrategy { task.exitStatus in 137..140 ? 'retry' : 'ignore' }
+
+    container "${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?
+        'https://github.com/iqbal-lab-org/clockwork/releases/download/v0.11.3/clockwork_v0.11.3.img':
+        'ghcr.io/iqbal-lab-org/clockwork:latest' }"
+
+    input:
+    tuple val(meta), path(reads), path(ref_tsv), val(ref_fa)
+       
+
+    output:
+    tuple val(meta), path("*{1,2}.fq.gz"), emit: reads
+    tuple val(meta), path("*.counts.tsv"), emit: tsv
+
+    script:
+     def threads = task.cpus
+    """
+     clockwork map_reads --threads $threads --unsorted_sam ${meta.id} $ref_fa ${meta.id}.sam ${reads[0]} ${reads[1]}
+     clockwork remove_contam $ref_tsv ${meta.id}.sam ${meta.id}.decontam.counts.tsv ${meta.id}.decontam_1.fq.gz ${meta.id}.decontam_2.fq.gz
+      
+      ##  reshub addition, free the SSD disk ASAP
+    if [[ ${params.clean_now} == true ]]; then
+      rm -f ${meta.id}.sam
+    fi
+
+    """
+
+}
 process VARIANT_CALL {
     tag "$meta.id"
     label 'process_medium'
@@ -80,6 +114,7 @@ process VARIANT_CALL {
      def clean_now = task.ext.clean ? false : true
     """
      clockwork variant_call_one_sample --sample_name ${meta.id} ./Ref.H37Rv var_call ${reads[0]} ${reads[1]}
+     
      cp ./var_call/final.vcf ${meta.id}.final.vcf
      cp ./var_call/samtools.vcf ${meta.id}.samtools.vcf
      cp ./var_call/cortex.vcf ${meta.id}.cortex.vcf
@@ -88,6 +123,9 @@ process VARIANT_CALL {
      if [[ ${params.clean_now} == true ]]; then
         rm \$(readlink ${reads[0]})
         rm \$(readlink ${reads[1]})
+
+        rm -f ./var_call/map.bam
+        rm -f ./var_call/map.bai
      fi
     """
 }
