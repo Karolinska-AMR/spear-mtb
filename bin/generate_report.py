@@ -9,9 +9,9 @@ def convert_drugname(abbr):
 
     drug_mapper = {"AMC": "AMOXICILIN-CLAVULANATE", "AMI": "AMIKACIN", "AMX": "AMOXICILIN", "AZM": "AZITHROMYCIN", "BDQ": "BEDAQUILINE", "CAP": "CAPREOMYCIN",
                    "CFZ": "CLOFAZIMINE", "CIP": "CIPROFLOXACIN", "CLR": "CLARITHROMYCIN", "CYC": "CYCLOSERINE", "DCS": "D-CYCLOSERINE", "DLM": "DELAMANID",
-                   "EMB": "ETHAMBUTOL", "ETH": "ETHIONAMIDE", "ETP": "ERTAPENEM", "FQS": "FLUOROQUINOLONE", "GEN": "GENTAMICIN", "GFX": "GATIFLOXACIN",
+                   "EMB": "ETHAMBUTOL", "ETH": "ETHIONAMIDE", "ETP": "ERTAPENEM", "FQS": "FLUOROQUINOLONES", "GEN": "GENTAMICIN", "GFX": "GATIFLOXACIN",
                    "IMI": "IMIPENEM", "INH": "ISONIAZID", "KAN": "KANAMYCIN", "LEV": "LEVOFLOXACIN", "LZD": "LINEZOLID", "MEF": "MEFLOQUINE", "MPM": "MEROPENEM",
-                   "MXF": "MOXIFLOXACIN", "OFX": "OFLOXACIN", "PAN": "PRETOMANID", "PAS": "PAS", "PTO": "PROTHIONAMIDE", "PZA": "PYRAZINAMIDE", "RFB": "RIFABUTIN",
+                   "MXF": "MOXIFLOXACIN", "OFX": "OFLOXACIN", "PAN": "PRETOMANID", "PAS": "PARA-AMINOSALICYLIC_ACID", "PTO": "PROTHIONAMIDE", "PZA": "PYRAZINAMIDE", "RFB": "RIFABUTIN",
                    "RIF": "RIFAMPICIN", "STM": "STREPTOMYCIN", "STX": "SITAFLOXACIN", "SXT": "COTRIMOXAZOLE", "SZD": "SUTEZOLID", "TRD": "TERIZIDONE", "TZE": "THIOACETAZONE"}
     try:
         return drug_mapper[abbr]
@@ -33,11 +33,85 @@ def convert_locusname(name):
 
 def gene_del_drugs(gene):
 
-    mapper = {"katG": ["isoniazid"],
-              "pncA": ["pyrazinamide"],
-              "fgd1": ["delamanid"],
-              "ethA": ["ethionamide"]
-              }
+    mapper = {
+        "fgd1": [
+            ["delamanid", "R"],
+            ["clofazimine", "U"]
+        ],
+        "ethA": [
+            ["ethionamide", "R"]
+        ],
+        "katG": [
+            ["isoniazid", "R"]
+        ],
+        "pncA": [
+            ["pyrazinamide", "R"]
+        ],
+        "bacA": [
+            ["amikacin", "U"],
+            ["capreomycin", "U"],
+            ["kanamycin", "U"],
+            ["streptomycin", "U"]
+        ],
+        "eis": [
+            ["amikacin", "U"],
+            ["kanamycin", "U"]
+        ],
+        "whiB6": [
+            ["amikacin", "U"],
+            ["capreomycin", "U"],
+            ["kanamycin", "U"]
+        ],
+        "Rv1979c": [
+            ["bedaquiline", "U"],
+            ["clofazimine", "U"]
+        ],
+        "ndh": [
+            ["delamanid", "U"],
+            ["ethionamide", "U"],
+            ["isoniazid", "U"]
+        ],
+        "embR": [
+            ["ethambutol", "U"]
+        ],
+        "glpK": [
+            ["ethambutol", "U"],
+            ["isoniazid", "U"],
+            ["levofloxacin", "U"],
+            ["moxifloxacin", "U"],
+            ["rifampicin", "U"],
+            ["streptomycin", "U"]
+        ],
+        "Rv2752c": [
+            ["ethambutol", "U"],
+            ["isoniazid", "U"],
+            ["levofloxacin", "U"],
+            ["moxifloxacin", "U"],
+            ["rifampicin", "U"]
+        ],
+        "mshA": [
+            ["ethionamide", "U"],
+            ["isoniazid", "U"]
+        ],
+        "Rv3083": [
+            ["ethionamide", "U"]
+        ],
+        "ahpC": [
+            ["isoniazid", "U"]
+        ],
+        "Rv1258c": [
+            ["isoniazid", "U"],
+            ["pyrazinamide", "U"],
+            ["streptomycin", "U"]
+        ],
+        "PPE35": [
+            ["pyrazinamide", "U"]
+        ],
+        "Rv3236c": [
+            ["pyrazinamide", "U"]
+        ]
+    }
+
     try:
         return mapper[gene]
     except KeyError:
@@ -49,8 +123,7 @@ def get_base_dict(sample_id):
     return {
         "seqid": sample_id,
         "category": None,
-        "tbprofiler": False,
-        "cryptic": False,
+        'catalogs':[],
         "pct_mapped_reads": None,
         "num_mapped_reads": None,
         "region_median_depth": None,
@@ -62,6 +135,21 @@ def get_base_dict(sample_id):
         "resist_drug": {}
     }
 
+
+def get_catalog_name(cat_name):
+        
+        if cat_name.startswith('who'):
+            catalog = "WHO-UCN-2023.5"
+        elif cat_name.startswith('tbdb'):
+            catalog = "TB-Profiler"
+        elif cat_name.lower().startswith('cryptic'):
+            catalog = 'CRyPTIC'
+        else:
+            catalog = cat_name
+        
+        return catalog
+
+
 def collect_tbprofilers(rep_dir, report_dict):
 
     # Extract tbprofiler dictionary
@@ -69,23 +157,17 @@ def collect_tbprofilers(rep_dir, report_dict):
         glob(os.path.join(rep_dir, "*.tbprofiler.results.json")))
 
     for fj in tbp_out_lst:
+     
         sid = os.path.basename(fj).split('.')[0]
         cat = os.path.basename(fj).split('.')[1]
 
-        if cat.startswith('who'):
-            catalog = "WHO-UCN-2023.5"
-        elif cat.startswith('tbdb'):
-            catalog = "TB-Profiler"
-        elif cat.lower().startswith('cryptic'):
-            catalog = 'CRYPTIC'
-        else:
-            catalog = "unknown"
+        catalog = get_catalog_name(cat)
 
         if sid not in report_dict:
             report_dict[sid] = get_base_dict(sid)
 
         ptr = report_dict[sid]
-        ptr["tbprofiler"] = True
+        ptr['catalogs'].append(catalog)
         with open(fj) as hdl:
             report_json = json.load(hdl)
             if "qc" in report_json:
@@ -98,7 +180,8 @@ def collect_tbprofilers(rep_dir, report_dict):
             if "main_lin" in report_json:
 
                 tmp_ptr = {"lin": [], "family": [],
-                                      "spoligotype": [], "rd": [], "frac": [], }
+                           "spoligotype": [], 
+                            "rd": [], "frac": [] }
 
                 prv_lin = ""
                 lineages = sorted(
@@ -119,25 +202,52 @@ def collect_tbprofilers(rep_dir, report_dict):
                 ptr['lineage'] = tmp_ptr
 
             ptr_var = ptr['variants']
-            variations = report_json["dr_variants"] + \
-                report_json["other_variants"]
-            for rvr in variations:
-                ptr_var.append({'catalog': catalog, "gene": rvr['gene'], "variant": rvr['change'],
-                                'freq': round(rvr['freq'], 2), 'depth': rvr['depth']})
-                if "drugs" in rvr:
-                    for drg in rvr["drugs"]:
-                        if drg["confers"].startswith('resistance'):
-                            name = str(drg["drug"]).upper()
+            
+            for rvr in report_json["dr_variants"]:
+                for drg in rvr["drugs"]:
+                    name = str(drg["drug"]).upper()
+                    if drg["confers"] != "sensitive":
+                        if drg["confers"]== 'resistance':
+                            pred = "R"
+                        elif drg["confers"]== 'uncertain':
+                            pred = "U"
+                        else:
+                            pred = '?'
+
+                        ptr_var.append({'catalog': catalog, "gene": rvr['gene'],'drug': name,
+                               "variant": rvr['change'], "pred": pred,
+                               'freq': round(rvr['freq'], 2), 'depth': rvr['depth']})
+
+                        if pred == 'R':
                             if name not in ptr['resist_drug']:
                                 ptr['resist_drug'][name] = set()
                             ptr['resist_drug'][name].add(catalog)
 
+            for rvr in report_json["other_variants"]:
+                
+                if "annotation" not in rvr:
+                    continue
+
+                for annot in rvr["annotation"]:
+                    name = str(annot["drug"]).upper()
+                    if "who_confidence" in annot:
+                        grade = annot["who_confidence"]
+                    elif "grade" in annot:
+                        grade = annot["grade"]
+                    else:
+                        print(f'UNKNOWN FORMAT: {annot}')
+                        continue
+                    if grade.lower().find('uncertain')>-1:    
+                        ptr_var.append({'catalog': catalog, "gene": rvr['gene'],'drug': name,
+                                "variant": rvr['change'], "pred": 'U',
+                                'freq': round(rvr['freq'], 2), 'depth': rvr['depth']})
+
             del_genes = get_gene_del(report_json["qc"]["region_qc"])
             ptr_dg = ptr["del_genes"]
             for gene, drugs in del_genes.items():
-                for drg in drugs:
-                    ptr_dg.append({'catalog': catalog, "gene": gene,
-                                  "variant": "feature_ablation", 'freq': None})
+                for drg,pred in drugs:
+                    ptr_dg.append({'catalog': catalog, "gene": gene,'pred': pred,'drug':drg,
+                                  "variant": "feature_ablation", 'freq': None,'depth': None})
 
             ptr['unverified_mutations'] = get_unverfied_regions(ptr['unverified_mutations'],
                                                                 report_json["qc"]["missing_positions"],
@@ -183,7 +293,7 @@ def get_unverfied_regions(unverified_variants, missing_pos, missing_genes, catal
             key = f"{gene}_{var}"
             if key not in unverified_variants:
                 unverified_variants[key] = (
-                    {'catalog': catalog, 'position': pos['position'], "gene": gene, "locus": locus, "variant": var})
+                    {'catalog': catalog, "gene": gene, "locus": locus, "variant": var})
     return unverified_variants
 
 
@@ -192,13 +302,15 @@ def collect_cryptics(rep_dir, report_dict):
 
     for fj in cryp_out_lst:
         sid = os.path.basename(fj).split('.')[0]
-        catalog = os.path.basename(fj).split('.')[1]
-
+        cat = os.path.basename(fj).split('.')[1]
+        
+        catalog = get_catalog_name(cat)
+        
         if sid not in report_dict:
             report_dict[sid] = get_base_dict(sid)
 
         ptr = report_dict[sid]
-        ptr["cryptic"] = True
+        ptr['catalogs'].append(catalog)
         with open(fj) as hdl:
             res_dict = json.load(hdl)
             res_dict = res_dict["data"]
@@ -215,8 +327,9 @@ def collect_cryptics(rep_dir, report_dict):
 
                     if mut['PREDICTION'] != "S":
                         ptr_var.append({'catalog': catalog, "gene": mut['GENE'],
-                                        "variant": f"{mut['GENE']}@{mut['MUTATION']}",
-                                        'freq': None})
+                                        'pred':mut['PREDICTION'],'drug':drg,
+                                        "variant": mut['MUTATION'],
+                                        'freq': None,'depth':None})
 
                         if mut['PREDICTION'] == "R":
                             if drg not in ptr['resist_drug']:
@@ -267,7 +380,6 @@ def classify_tb_resistance(resistant_drugs):
     #     return 'Pre-MDR'
     else:
         return 'other'
-
 
 
 def generate(in_dir, prefix):
