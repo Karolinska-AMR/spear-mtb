@@ -67,7 +67,7 @@ workflow MTB_FINDER{
 
         MERGE_BARACKEN(tsv_ch)
         mtbs_smaples = MERGE_BARACKEN.out.tsv.splitCsv(sep:"\t",header:true)
-                    .filter{row -> row.fraction_total_reads.toDouble() >= 0.95 && row.name == "Mycobacterium tuberculosis"}
+                    .filter{row -> row.fraction_total_reads.toDouble() >= 0.8 && row.name == "Mycobacterium tuberculosis"}
                     .map{it -> [[id:it.sample]]}
         
         mtbs_ch = input_ch.join(mtbs_smaples).map{it->[it[0].id,it[1]]}
