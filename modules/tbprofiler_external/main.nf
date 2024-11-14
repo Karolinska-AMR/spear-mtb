@@ -5,9 +5,11 @@ process TBPROFILER_PROFILE_EXTERNAL {
 	maxRetries 3
 	errorStrategy { task.exitStatus in 137..140 ? 'retry' : 'ignore' }
 
+    conda (params.enable_conda ? "bioconda::tb-profiler=6.4.0" : null)
     container "${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?
-        'https://depot.galaxyproject.org/singularity/tb-profiler:5.0.1--pyhdfd78af_1' :
-        'biocontainers/tb-profiler:5.0.1--pyhdfd78af_1' }"
+        'https://depot.galaxyproject.org/singularity/tb-profiler:6.4.0--pyhdfd78af_0' :
+        'quay.io/biocontainers/tb-profiler:6.4.0--pyhdfd78af_0' }"
+        
     containerOptions "--bind $db:/usr/local/share/tbprofiler"
 
     input:
