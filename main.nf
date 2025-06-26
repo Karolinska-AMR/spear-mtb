@@ -19,6 +19,8 @@ def h37Rv_dir = "${assets_dir}/Ref.H37Rv";
 def out_dir = params.out_dir
 def k2_db='k2_myco'
 
+def archive_input= params.archive_input?:false
+
 workflow{
 
 
@@ -26,6 +28,7 @@ workflow{
 
    reads_ch = Channel.fromFilePairs("${params.input_dir}/*_{1,2}.fastq.gz")
                      .concat(Channel.fromFilePairs("${params.input_dir}/*/*_{1,2}.fastq.gz"));
+
 
    ref_fa = Channel.fromPath("${assets_dir}/Ref.remove_contam/*.fa");
    
@@ -38,21 +41,20 @@ workflow{
    // Running TBPROFILER
    
    tbpr_ch = input_ch.map{it->[[id:"${it[0]}.tbdb.tbprofiler",single_end:false],it[1]]}
+   
+
    tbp(tbpr_ch,out_dir)
   
-   bam_ch = tbp.out.bam.map{it->[[id:"${it[1].simpleName}.who2023v5.tbprofiler"],it[1]]}
-                .combine(Channel.fromPath("${assets_dir}/catalogues/NC_000962.3/WHO-2023.5"))
+   bam_ch = tbp.out.bam.map{it->[[id:"${it[1].simpleName}.who2023v7.tbprofiler"],it[1]]}
+               .combine(Channel.fromPath("${assets_dir}/catalogues/NC_000962.3/who2023v07"))
    tbp_ext(bam_ch,out_dir)
 
    // Running CRyPTIC workflow
    contam_ref_ch = Channel.fromPath("${assets_dir}/Ref.remove_contam/*.tsv");
 
-//    cryptic_ch =  input_ch.combine(ref_fa).map{it->[[id:"${it[0]}.cryptic"],it[1],it[2]]}  
-//    mpr(cryptic_ch) 
-//    rmc(mpr.out.sam.combine(contam_ref_ch))
 
-   cryptic_ch =  input_ch.combine(contam_ref_ch).combine(ref_fa).map{it->[[id:"${it[0]}.cryptic"],it[1],it[2],it[3]]}
-   rmc_mrg(cryptic_ch)
+   cryptic_ch = input_ch.combine(contam_ref_ch).combine(ref_fa).map{it->[[id:"${it[0]}.cryptic"],it[1],it[2],it[3]]}
+   rmc_mrg(cryptic_ch) 
 
    vrc(rmc_mrg.out.reads.combine(Channel.fromPath(h37Rv_dir)),out_dir)
 
@@ -68,11 +70,12 @@ workflow{
           .concat(tbp.out.json)
           .concat(tbp_ext.out.json).map{it->it[1]}.flatten()
           
-    // Archive the successfully executed Illumina PE-reads
-    arc_ch = input_ch.join(prd.out.json.concat(tbp.out.json).map{it-> it[0].id.split("\\.")[0]})
-
-    arch(arc_ch,params.archive,'mv')
-
+   if(archive_input){
+      // Archive the successfully executed Illumina PE-reads
+      arc_ch = input_ch.join(prd.out.json.concat(tbp.out.json).map{it-> it[0].id.split("\\.")[0]})
+      arch(arc_ch,params.archive,'mv')
+   }
+   
     grp(ser_ch.collect(),params.ticket)
     grp.out.json.collectFile(storeDir:"${out_dir}/reports")
 } 

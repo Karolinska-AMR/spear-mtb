@@ -76,7 +76,7 @@ fi
 input_dir=$(readlink -f "$1")
 
 # Set a default ticket for the nextflow trace report
-default_ticket="$out_dir/$(date +'%y%m%d-%H%M%S')"
+default_ticket="$(date +'%y%m%d-%H%M%S')"
 
 if [ -z "$ticket" ]; then
   ticket="$default_ticket"
@@ -100,7 +100,13 @@ echo "Running SPEAR-MTB..."
 
 cd "$work_dir"
 
-nice -5 nextflow run "$SRC/main.nf" -profile "$profile" -c "$config_file" -w "$work_dir" --assets_dir "$assets_dir" --out_dir "$out_dir" --archive "$archive_dir" --input_dir "$input_dir" --ticket "$ticket" -with-trace "$trace_file" > "$log_file"
+conda activate spear-mtb
+
+
+echo nice -5 nextflow run "$SRC/main.nf" -profile "$profile" -c "$config_file" -w "$work_dir" --assets_dir "$assets_dir" --out_dir "$out_dir" --archive "$archive_dir" --input_dir "$input_dir" --ticket "$ticket" -with-trace "$trace_file"
+nice -5 nextflow run "$SRC/main.nf" -profile "$profile" -c "$config_file" -w "$work_dir" --assets_dir "$assets_dir" --out_dir "$out_dir" --archive "$archive_dir" --input_dir "$input_dir" --ticket "$ticket" -with-trace "$trace_file" -resume
+
+# > "$log_file"
 
 echo ""
 echo "    ______ _         _        __               __"

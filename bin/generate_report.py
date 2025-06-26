@@ -19,16 +19,21 @@ def convert_drugname(abbr):
         return abbr
 
 
-def convert_locusname(name):
-    locus_mapper = {"Rv0005": "gyrB", "Rv0006": "gyrA", "Rv0407": "fgd1", "Rv0486": "mshA", "Rv0667": "rpoB", "Rv0668": "rpoC", "Rv0678": "mmpR5", "Rv0682": "rpsL", "Rv0701": "rplC",
-                    "Rv1173": "fbiC", "Rv1267c": "embR", "Rv1305": "atpE", "rrs": "rrs", "rrl": "rrl", "Rv1483": "fabG1", "Rv1484": "inhA", "Rv1630": "rpsA", "Rv1694": "tlyA", "Rv1908c": "katG", "Rv2043c": "pncA",
-                    "Rv2245": "kasA", "Rv2416c": "eis", "Rv2428": "ahpC", "Rv2447c": "folC", "Rv2535c": "pepQ", "Rv2671": "ribD", "Rv2754c": "thyX", "Rv2764c": "thyA", "Rv2780": "ald", "Rv2983": "fbiD", "Rv3261": "fbiA",
-                    "Rv3262": "fbiB", "Rv3423c": "alr", "Rv3547": "ddn", "Rv3601c": "panD", "Rv3793": "embC", "Rv3794": "embA", "Rv3795": "embB", "Rv3806c": "ubiA", "Rv3854c": "ethA", "Rv3855": "ethR", "Rv3919c": "gid"}
+def convert_gene_locus(name, reverse=False):
+    data = {"gyrB": "Rv0005", "gyrA": "Rv0006", "fgd1": "Rv0407", "mshA": "Rv0486", "rpoB": "Rv0667",
+                    "rpoC": "Rv0668", "mmpR5": "Rv0678", "rpsL": "Rv0682", "rplC": "Rv0701", "fbiC": "Rv1173",
+                    "embR": "Rv1267c", "atpE": "Rv1305", "rrs": "rrs", "rrl": "rrl", "fabG1": "Rv1483",
+                    "inhA": "Rv1484", "rpsA": "Rv1630", "tlyA": "Rv1694", "katG": "Rv1908c", "pncA": "Rv2043c",
+                    "kasA": "Rv2245", "eis": "Rv2416c", "ahpC": "Rv2428", "folC": "Rv2447c", "pepQ": "Rv2535c",
+                    "ribD": "Rv2671", "thyX": "Rv2754c", "thyA": "Rv2764c", "ald": "Rv2780", "fbiD": "Rv2983",
+                    "fbiA": "Rv3261", "fbiB": "Rv3262", "alr": "Rv3423c", "ddn": "Rv3547", "panD": "Rv3601c",
+                    "embC": "Rv3793", "embA": "Rv3794", "embB": "Rv3795", "ubiA": "Rv3806c", "ethA": "Rv3854c",
+                    "ethR": "Rv3855", "gid": "Rv3919c"
+            }
+    if reverse:
+        data = {v: k for k, v in data.items()}
 
-    try:
-        return locus_mapper[name]
-    except KeyError:
-        return name
+    return data.get(name, name)
 
 
 def gene_del_drugs(gene):
@@ -111,44 +116,34 @@ def gene_del_drugs(gene):
             ["pyrazinamide", "U"]
         ]
     }
-
-    try:
-        return mapper[gene]
-    except KeyError:
-        return []
+    return mapper.get(gene, [])
 
 
 def get_base_dict(sample_id):
 
     return {
         "seqid": sample_id,
-        "category": None,
-        'catalogs':[],
-        "pct_mapped_reads": None,
+        "category_who": None,
+        'analyzed_catalogs': [],
+        "percent_reads_mapped": None,
         "num_mapped_reads": None,
-        "region_median_depth": None,
+        "target_median_depth": None,
         "genome_median_depth": None,
         "lineage": {},
         "variants": [],
         "unverified_mutations": {},
         "del_genes": [],
-        "resist_drug": {}
+        "resist_drug": [],
+        "notes": [],
     }
 
 
-def get_catalog_name(cat_name):
-        
-        if cat_name.startswith('who'):
-            catalog = "WHO-UCN-2023.5"
-        elif cat_name.startswith('tbdb'):
-            catalog = "TB-Profiler"
-        elif cat_name.lower().startswith('cryptic'):
-            catalog = 'CRyPTIC'
-        else:
-            catalog = cat_name
-        
-        return catalog
+def get_catalog_repo():
+    return {'who':"WHO__v2023.07",'tbdb':"TB-Profiler__v6.4.0",'cryptic':"CRyPTIC__v1-311-6627d81_WHOv2-7577f14"}
 
+def get_catalog_fullname(name):
+    repo = get_catalog_repo()
+    return repo.get(name,name)
 
 def collect_tbprofilers(rep_dir, report_dict):
 
@@ -157,144 +152,252 @@ def collect_tbprofilers(rep_dir, report_dict):
         glob(os.path.join(rep_dir, "*.tbprofiler.results.json")))
 
     for fj in tbp_out_lst:
-     
+
         sid = os.path.basename(fj).split('.')[0]
         cat = os.path.basename(fj).split('.')[1]
+        catch_resis_drg = False
+        if cat.startswith('who'):
+            cat = 'who'
+            catch_resis_drg = True
 
-        catalog = get_catalog_name(cat)
+        catalog = get_catalog_fullname(cat)
 
         if sid not in report_dict:
             report_dict[sid] = get_base_dict(sid)
 
         ptr = report_dict[sid]
-        ptr['catalogs'].append(catalog)
+        
         with open(fj) as hdl:
             report_json = json.load(hdl)
+
+            # # directly from the json file
+            # if "pipeline" in report_json:
+            #     catalog = report_json["pipeline"]["db_version"]["name"]
+            #     if catalog.startswith('who'):
+            #         catalog = 'WHO_v2023.7'
+            #     elif catalog.startswith('tbdb'):
+            #         catalog = 'TB-Profiler_v'+ report_json["pipeline"]['software_version']
+            
+            ptr['analyzed_catalogs'].append(catalog)
+
             if "qc" in report_json:
                 ptr_qc = report_json["qc"]
-                ptr["pct_mapped_reads"] = ptr_qc["pct_reads_mapped"]
+                ptr["percent_reads_mapped"] = ptr_qc["percent_reads_mapped"]
                 ptr["num_mapped_reads"] = ptr_qc["num_reads_mapped"]
-                ptr["region_median_depth"] = ptr_qc["region_median_depth"]
+                ptr["target_median_depth"] = ptr_qc["target_median_depth"]
                 ptr["genome_median_depth"] = ptr_qc["genome_median_depth"]
 
-            if "main_lin" in report_json:
+            if "main_lineage" in report_json:
 
-                tmp_ptr = {"lin": [], "family": [],
-                           "spoligotype": [], 
-                            "rd": [], "frac": [] }
+                tmp_ptr = {"lineage": [], "family": [], "rd": [], "fraction": [
+                ], "spoligotype": [report_json.get("spoligotype", None)]}
 
                 prv_lin = ""
                 lineages = sorted(
-                    report_json["lineage"], key=lambda x: x['lin'])
+                    report_json["lineage"], key=lambda x: x['lineage'])
                 for lng in lineages[::-1]:
-                    if not prv_lin.startswith(lng['lin']):
-                        tmp_ptr['frac'].append(round(lng['frac'], 2))
-                        tmp_ptr['lin'].append(lng['lin'])
+                    if not prv_lin.startswith(lng['lineage']):
+                        tmp_ptr['fraction'].append(round(lng['fraction'], 2))
+                        tmp_ptr['lineage'].append(lng['lineage'])
                         tmp_ptr['family'].append(lng['family'])
-                        tmp_ptr['spoligotype'].append(lng['spoligotype'])
                         tmp_ptr['rd'].append(lng['rd'])
-                    prv_lin = lng['lin']
+                    prv_lin = lng['lineage']
 
-                is_mixed = len(tmp_ptr["lin"]) > 1
+                is_mixed = len(tmp_ptr["lineage"]) > 1
                 for k, v in tmp_ptr.items():
                     tmp_ptr[k] = '|'.join(map(str, v)).replace('None', '')
                 tmp_ptr["is_mixed"] = is_mixed
                 ptr['lineage'] = tmp_ptr
 
-            ptr_var = ptr['variants']
-            
-            for rvr in report_json["dr_variants"]:
-                for drg in rvr["drugs"]:
-                    name = str(drg["drug"]).upper()
-                    if drg["confers"] != "sensitive":
-                        if drg["confers"]== 'resistance':
-                            pred = "R"
-                        elif drg["confers"]== 'uncertain':
-                            pred = "U"
-                        else:
-                            pred = '?'
+            if catalog.startswith('WHO'):
+                fetch_variants_who(ptr, report_json, catalog,catch_resis_drg)
+            elif catalog.startswith('TB-Profiler'):
+                fetch_variants_tbdb(ptr, report_json, catalog)
 
-                        ptr_var.append({'catalog': catalog, "gene": rvr['gene'],'drug': name,
-                               "variant": rvr['change'], "pred": pred,
-                               'freq': round(rvr['freq'], 2), 'depth': rvr['depth']})
+            target_qcs = report_json["qc"]["target_qc"]
+            deleted_genes = []
 
-                        if pred == 'R':
-                            if name not in ptr['resist_drug']:
-                                ptr['resist_drug'][name] = set()
-                            ptr['resist_drug'][name].add(catalog)
-
-            for rvr in report_json["other_variants"]:
-                
-                if "annotation" not in rvr:
-                    continue
-
-                for annot in rvr["annotation"]:
-                    name = str(annot["drug"]).upper()
-                    if "who_confidence" in annot:
-                        grade = annot["who_confidence"]
-                    elif "grade" in annot:
-                        grade = annot["grade"]
+            for trgt in target_qcs:
+                gene = trgt['target']
+                if trgt['median_depth'] <= 5:
+                    aff_drugs = gene_del_drugs(gene)
+                    deleted_genes.append(gene)
+                    if len(aff_drugs) > 0:
+                        for drg, pred in aff_drugs:
+                            ptr['variants'].append({
+                                'catalog':catalog,
+                                "drug": str(drg).upper(),
+                                "gene_name": gene,
+                                "change": "feature_ablation",
+                                "effect": "feature_ablation",
+                                "variant": f"{gene}_deletion",
+                                "prediction": pred
+                            })
                     else:
-                        print(f'UNKNOWN FORMAT: {annot}')
+                        ptr["notes"].append(
+                            f"{gene}: feature_ablation with unkown effect on resistance.")
+
+            # unverified mutations
+            ptr_unver = ptr['unverified_mutations']
+            missing_locus = [convert_gene_locus(g) for g in deleted_genes]
+            miss_ptr = report_json["qc"]["missing_positions"]
+            for mis in miss_ptr:
+                for annot in mis['annotation']:
+                    locus = annot['gene']
+                    # The gene is deleted no need to list related mutations as unverified
+                    if locus in missing_locus:
                         continue
-                    if grade.lower().find('uncertain')>-1:    
-                        ptr_var.append({'catalog': catalog, "gene": rvr['gene'],'drug': name,
-                                "variant": rvr['change'], "pred": 'U',
-                                'freq': round(rvr['freq'], 2), 'depth': rvr['depth']})
 
-            del_genes = get_gene_del(report_json["qc"]["region_qc"])
-            ptr_dg = ptr["del_genes"]
-            for gene, drugs in del_genes.items():
-                for drg,pred in drugs:
-                    ptr_dg.append({'catalog': catalog, "gene": gene,'pred': pred,'drug':drg,
-                                  "variant": "feature_ablation", 'freq': None,'depth': None})
-
-            ptr['unverified_mutations'] = get_unverfied_regions(ptr['unverified_mutations'],
-                                                                report_json["qc"]["missing_positions"],
-                                                                del_genes, catalog)
+                    var = annot["variant"]
+                    key = f"{gene}_{var}"
+                    if key not in ptr_unver:
+                        ptr_unver[key] = {'catalog': catalog, "drug": annot["drug"].upper(),
+                                        "gene": convert_gene_locus(locus, True), "locus": locus, "variant": var}
 
     return report_dict
+
+
+def fetch_variants_tbdb(json_ptr, report_json, catalog):
+    sel_keys_base = ['pos', 'depth', 'freq', 'gene_id',
+                     "gene_name", "change", "nucleotide_change", "protein_change"]
+    sel_key_annot = ['drug', 'variant', 'effect', 'grade',
+                     'prediction', 'comment_1', 'comment_2', 'footnote']
+    conf_pred = {"Assoc w R": 'R', "Assoc w R - Interim": 'R',
+                 "Uncertain significance": 'U', "Not assoc w R - Interim": 'S', "Not assoc w R": 'S'}
+    
+    ptr_var = json_ptr['variants']
+    for rvr in report_json["dr_variants"]:
+        base_info = {'catalog': catalog}
+        for k in sel_keys_base:
+            val = rvr.get(k, None)
+            if k == 'freq' and val is not None:
+                val = round(val, 2)
+            
+            base_info[k] = val
+
+        for consq in rvr["consequences"]:
+            for annot in consq["annotation"]:
+                annot_content = {}
+                for k in sel_key_annot:
+                    val = annot.get(k, None)
+                    if k == 'drug':
+                        val = str(val).upper()
+                    if k == 'effect':
+                        val = rvr.get("type",None)
+                    annot_content[k] = val
+
+                annot_content['variant'] = annot['original_mutation']
+                annot_content['comment_1'] = annot['comment']
+                annot_content['grade'] = annot['confidence']
+                annot_content['footnote'] = annot['source']
+
+                if annot['type'] == "who_confidence":
+                    annot_content['prediction'] = conf_pred.get(
+                        annot['confidence'], None)
+                elif annot['type'] == "drug_resistance":
+                    annot_content['prediction'] = conf_pred.get(
+                        annot['confidence'], 'R')
+            
+                if annot_content["prediction"] != 'S':
+                    ptr_var.append({**base_info, **annot_content})
+
+    for rvr in report_json["other_variants"]:
+
+        if "annotation" not in rvr:
+            continue
+
+        base_info = {'catalog': catalog}
+        for k in sel_keys_base:
+            val = rvr.get(k, None)
+            if k == 'freq' and val is not None:
+                val = round(val, 2)
+            base_info[k] = val
+
+        for annot in rvr["annotation"]:
+
+            annot_content = {}
+            for k in sel_key_annot:
+                val = annot.get(k, None)
+                if k == 'drug':
+                    val = str(val).upper()
+                annot_content[k] = val
+
+            annot_content['variant'] = annot['original_mutation']
+            annot_content['comment_1'] = annot['comment']
+            annot_content['grade'] = annot['confidence']
+            annot_content['footnote'] = annot['source']
+
+            if annot['type'] == "who_confidence":
+                annot_content['prediction'] = conf_pred.get(
+                    annot['confidence'], None)
+            elif annot['type'] == "drug_resistance":
+                annot_content['prediction'] = conf_pred.get(
+                    annot['confidence'], 'R')
+            if annot_content["prediction"] != 'S':
+                ptr_var.append({**base_info, **annot_content})
+
+
+def fetch_variants_who(json_ptr, report_json, catalog,save_resist_drug=False):
+    sel_keys_base = ['pos', 'depth', 'freq', 'gene_id',
+                     "gene_name", "change", "nucleotide_change", "protein_change"]
+    sel_key_annot = ['drug', 'variant', 'effect', 'grade',
+                     'prediction', 'comment_1', 'comment_2', 'footnote']
+
+    ptr_var = json_ptr['variants']
+    for rvr in report_json["dr_variants"]:
+        base_info = {'catalog': catalog}
+        for k in sel_keys_base:
+            val = rvr.get(k, None)
+            if k == 'freq' and val is not None:
+                val = round(val, 2)
+            base_info[k] = val
+
+        for consq in rvr["consequences"]:
+            for annot in consq["annotation"]:
+                if annot["prediction"] in ['R', 'U']:
+                    annot_content = {}
+                    for k in sel_key_annot:
+                        val = annot.get(k, None)
+                        if k == 'drug':
+                            val = str(val).upper()
+                            if annot['prediction'] == 'R' and save_resist_drug and val not in json_ptr['resist_drug']:
+                                json_ptr['resist_drug'].append(val)
+
+                        annot_content[k] = val
+                    ptr_var.append({**base_info, **annot_content})
+
+    for rvr in report_json["other_variants"]:
+        # ignore if there is no annotation:
+        # TODO: would be good to investigate these mutations in the future.
+        if "annotation" not in rvr:
+            continue
+
+        base_info = {'catalog': catalog}
+        for k in sel_keys_base:
+            val = rvr.get(k, None)
+            if k == 'freq' and val is not None:
+                val = round(val, 2)
+            base_info[k] = val
+
+        for annot in rvr["annotation"]:
+
+            if annot['prediction'] != 'S':
+                annot_content = {}
+                for k in sel_key_annot:
+                    val = annot.get(k, None)
+                    if k == 'drug':
+                        val = str(val).upper()
+                    annot_content[k] = val
+                ptr_var.append({**base_info, **annot_content})
 
 
 def get_gene_del(region_qc):
     del_genes = {}
     for item in region_qc:
-        reg = item['region']
-        gene = convert_locusname(reg)
+        gene = item['target']
         if item['median_depth'] <= 5:
             del_genes[gene] = gene_del_drugs(gene)
-
     return del_genes
-
-
-def get_unverfied_regions(unverified_variants, missing_pos, missing_genes, catalog):
-    ctrl_rec = set()
-    for pos in missing_pos:
-        gene = pos['gene']
-        locus = pos['locus_tag']
-        # drugs = pos['drugs'].split(',')
-        variants = pos['variants'].split(',')
-        is_deleted = False
-        if gene in missing_genes:
-            is_deleted = True
-            variants = [f"feature_ablation"]
-
-        # for drg in drugs:
-        if is_deleted:
-            key = f"{gene}"
-            if key in ctrl_rec:
-                continue
-            ctrl_rec.add(key)
-
-        for var in variants:
-            # it's deletion, not missing R
-            if var.find('del') > -1:
-                continue
-            key = f"{gene}_{var}"
-            if key not in unverified_variants:
-                unverified_variants[key] = (
-                    {'catalog': catalog, "gene": gene, "locus": locus, "variant": var})
-    return unverified_variants
 
 
 def collect_cryptics(rep_dir, report_dict):
@@ -303,14 +406,14 @@ def collect_cryptics(rep_dir, report_dict):
     for fj in cryp_out_lst:
         sid = os.path.basename(fj).split('.')[0]
         cat = os.path.basename(fj).split('.')[1]
-        
-        catalog = get_catalog_name(cat)
-        
+        cat = cat.split('__')[-1]
+        catalog = get_catalog_fullname('cryptic')
+
         if sid not in report_dict:
             report_dict[sid] = get_base_dict(sid)
 
         ptr = report_dict[sid]
-        ptr['catalogs'].append(catalog)
+        ptr['analyzed_catalogs'].append(catalog)
         with open(fj) as hdl:
             res_dict = json.load(hdl)
             res_dict = res_dict["data"]
@@ -326,15 +429,10 @@ def collect_cryptics(rep_dir, report_dict):
                         continue
 
                     if mut['PREDICTION'] != "S":
-                        ptr_var.append({'catalog': catalog, "gene": mut['GENE'],
-                                        'pred':mut['PREDICTION'],'drug':drg,
-                                        "variant": mut['MUTATION'],
-                                        'freq': None,'depth':None})
-
-                        if mut['PREDICTION'] == "R":
-                            if drg not in ptr['resist_drug']:
-                                ptr['resist_drug'][drg] = set()
-                            ptr['resist_drug'][drg].add(catalog)
+                        ptr_var.append({'catalog': catalog, "gene_name": mut['GENE'],
+                                        'prediction': mut['PREDICTION'], 'drug': drg,
+                                        "change": mut['MUTATION'],
+                                        "footnote":cat})
 
     return report_dict
 
@@ -355,10 +453,8 @@ def classify_tb_resistance(resistant_drugs):
     is_INH_resistant = 'ISONIAZID' in resistant_drugs
     is_RIF_resistant = 'RIFAMPICIN' in resistant_drugs
     is_first_line_resistant = first_line_drugs.intersection(resistant_drugs)
-    is_second_line_injectable_resistant = second_line_injectables.intersection(
-        resistant_drugs)
-    is_fluoroquinolone_resistant = fluoroquinolones.intersection(
-        resistant_drugs)
+    is_second_line_injectable_resistant = second_line_injectables.intersection(resistant_drugs)
+    is_fluoroquinolone_resistant = fluoroquinolones.intersection(resistant_drugs)
     is_group_a_resistant = group_A.intersection(resistant_drugs)
 
     if len(is_first_line_resistant) == 1:
@@ -376,21 +472,23 @@ def classify_tb_resistance(resistant_drugs):
     #     return 'RR'
     elif len(is_first_line_resistant) >= 2:
         return 'Poly'
-    # elif is_INH_resistant or is_RIF_resistant:
-    #     return 'Pre-MDR'
+    elif is_INH_resistant or is_RIF_resistant:
+        return 'Pre-MDR'
     else:
         return 'other'
 
 
 def generate(in_dir, prefix):
-    report_dict = {}
-    collect_tbprofilers(in_dir, report_dict)
-    collect_cryptics(in_dir, report_dict)
+    report_dict = { "catalogs_repo": get_catalog_repo()}
+    samples = {}
+    collect_tbprofilers(in_dir, samples)
+    collect_cryptics(in_dir, samples)
 
-    for sid, content in report_dict.items():
-        report_dict[sid]['category'] = classify_tb_resistance(
-            list(content['resist_drug'].keys()))
-        report_dict[sid]['resist_drug'] = list(content['resist_drug'])
+    report_dict['samples'] = list(samples.values())
+    for i in range(len(report_dict['samples'])):
+        sm = report_dict['samples'][i]
+        sm['category_who'] = classify_tb_resistance(sm['resist_drug'])
+        
 
     djson = json.dumps(report_dict)
 
@@ -408,4 +506,5 @@ if __name__ == "__main__":
 
     options = parser.parse_args()
 
+    # generate('/Users/mohammad.razavi/Projects/website/catalogues/script', 'test')
     generate(options.in_dir, options.prefix)
