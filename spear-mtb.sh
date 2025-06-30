@@ -11,23 +11,24 @@ usage() {
 Usage: $0 --input_dir <path> --output_dir <path> [OPTIONS]
 
 Required parameters:
-    --input_dir <path>      Input directory path
-    --output_dir <path>     Output directory path
+    --input_dir, -i <path>          Input directory path
+    --output_dir, -o <path>         Output directory path
 
 Optional parameters:
-    --working_dir <path>    Working directory (default: ./[source_dir]/.tmp)
-    --config_file <path>    Nextflow config file
-    --assets_dir <path>     Assets directory
-    --profile <name>        Nextflow profile to use
-    --archive_dir <path>    Archive directory
-    --resume                Resume previous run 
-    --skip_cryptic          Skip cryptic workflow 
-    --ticket <value>        Ticket ID 
-    -h, --help              Show this help message
+    --working_dir, -w <path>        Working directory (default: ./[source_dir]/.tmp)
+    --config_file, -c <path>        Nextflow config file
+    --assets_dir, -a <path>         Assets directory
+    --profile, -p <name>            Nextflow profile to use
+    --archive_dir, -A <path>        Archive directory
+    --resume, -r                    Resume previous run 
+    --skip_cryptic, -s              Skip cryptic workflow 
+    --ticket, -t <value>            Ticket ID 
+    --singularity_cache, -S <path>  Singularity cache directory
+    -h, --help                      Show this help message
 
 Examples:
     $0 --input_dir /data/input --output_dir /data/output
-    $0 --input_dir /data/input --output_dir /data/output --profile slurm --resume
+    $0 -i /data/input -o /data/output --profile slurm --resume
 EOF
 }
 
@@ -78,48 +79,53 @@ ARCHIVE_DIR=""
 RESUME=false
 SKIP_CRYPTIC=false
 TICKET=""
+SINGULARTIY_CACHE=""
 
 # Parse command line arguments
 while [[ $# -gt 0 ]]; do
     case $1 in
-        --input_dir)
+        --input_dir|-i)
             INPUT_DIR="$2"
             shift 2
             ;;
-        --output_dir)
+        --output_dir|-o)
             OUTPUT_DIR="$2"
             shift 2
             ;;
-        --working_dir)
+        --working_dir|-w)
             WORKING_DIR="$2"
             shift 2
             ;;
-        --config_file)
+        --config_file|-c)
             CONFIG_FILE="$2"
             shift 2
             ;;
-        --assets_dir)
+        --assets_dir|-a)
             ASSETS_DIR="$2"
             shift 2
             ;;
-        --profile)
+        --profile|-p)
             PROFILE="$2"
             shift 2
             ;;
-        --archive_dir)
+        --archive_dir|-A)
             ARCHIVE_DIR="$2"
             shift 2
             ;;
-        --resume)
+        --resume|-r)
             RESUME=true
             shift
             ;;
-        --skip_cryptic)
+        --skip_cryptic|-s)
             SKIP_CRYPTIC=true
             shift
             ;;
-        --ticket)
+        --ticket|-t)
             TICKET="$2"
+            shift 2
+            ;;
+        --singularity_cache|-S)
+            SINGULARTIY_CACHE="$2"
             shift 2
             ;;
         -h|--help)
@@ -192,16 +198,17 @@ fi
 echo "============================================="
 echo "Nextflow Pipeline Configuration"
 echo "============================================="
-echo "Input Directory:    $INPUT_DIR"
-echo "Output Directory:   $OUTPUT_DIR"
-echo "Working Directory:  $WORKING_DIR"
-echo "Config File:        ${CONFIG_FILE:-"Not specified"}"
-echo "Assets Directory:   ${ASSETS_DIR:-"Not specified"}"
-echo "Profile:            ${PROFILE:-"Not specified"}"
-echo "Archive Directory:  ${ARCHIVE_DIR:-"Not specified"}"
-echo "Resume:             $RESUME"
-echo "Skip Cryptic:       $SKIP_CRYPTIC"
-echo "Ticket:             $TICKET"
+echo "Input Directory:      $INPUT_DIR"
+echo "Output Directory:     $OUTPUT_DIR"
+echo "Working Directory:    $WORKING_DIR"
+echo "Config File:          ${CONFIG_FILE:-"Not specified"}"
+echo "Assets Directory:     ${ASSETS_DIR:-"Not specified"}"
+echo "Profile:              ${PROFILE:-"Not specified"}"
+echo "Archive Directory:    ${ARCHIVE_DIR:-"Not specified"}"
+echo "Singularity Cache:    ${SINGULARTIY_CACHE:-"Not specified"}"
+echo "Resume:               $RESUME"
+echo "Skip Cryptic:         $SKIP_CRYPTIC"
+echo "Ticket:               $TICKET"
 echo "============================================="
 
 # Ask user for confirmation
@@ -257,6 +264,9 @@ if [[ "$SKIP_CRYPTIC" == true ]]; then
     NEXTFLOW_CMD="$NEXTFLOW_CMD --skip_cryptic"
 fi
 
+if [[ -n "$SINGULARTIY_CACHE" ]]; then
+    NEXTFLOW_CMD="$NEXTFLOW_CMD --singularity_cache '$SINGULARTIY_CACHE'"
+fi
 # Display the command that will be executed
 echo "============================================="
 echo "Executing Nextflow command:"
