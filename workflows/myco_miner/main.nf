@@ -10,17 +10,16 @@ process MERGE_BARACKEN{
     input:
     path tsvs
     
-
+    publishDir "${params.out_dir}/results", mode: 'copy', pattern: "*.mycofinder.out", saveAs: { filename -> "${params.ticket}.merged.mycofinder.tsv" }
+    
     output:
-    path "species_samples.out", emit: tsv
+    path "*.mycofinder.out", emit: tsv
     
     
-    script:
-    
-    
+    script:   
     
     """
-    result_file="species_samples.out"
+    result_file="${params.ticket}.mycofinder.out"
     touch "\$result_file"
     header_added=false
 
@@ -75,4 +74,5 @@ workflow MTB_FINDER{
     emit:
         species_tsvs = MERGE_BARACKEN.out.tsv
         mtbs_ch = mtbs_ch
+    
 }
