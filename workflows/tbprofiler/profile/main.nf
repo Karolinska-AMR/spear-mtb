@@ -13,7 +13,6 @@ process TBPROFILER_PROFILE {
 
     input:
     tuple val(meta), path(reads)
-    val pub_dir
 
     output:
     tuple val(meta), path("bam/*.bam")     , emit: bam
@@ -24,7 +23,7 @@ process TBPROFILER_PROFILE {
     tuple val(meta), path("vcf/*.vcf.gz")  , emit: vcf
     path "versions.yml"                    , emit: versions
 
-    publishDir { "${pub_dir}/${meta.id.tokenize('.')[0]}/tbprofiler"},
+    publishDir { "${params.out_dir}/results/intermediate/${meta.id.tokenize('.')[0]}/tbprofiler"},
             mode: 'copy',
             saveAs: { fn -> fn.tokenize('/')[-1] }
 

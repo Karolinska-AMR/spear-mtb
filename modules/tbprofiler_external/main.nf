@@ -14,13 +14,12 @@ process TBPROFILER_PROFILE_EXTERNAL {
 
     input:
     tuple val(meta), path(bam), path(db)
-    val pub_dir
 
     output:
     tuple val(meta), path("results/*.json"), emit: json
   
 
-    publishDir { "${pub_dir}/${meta.id.tokenize('.')[0]}/tbprofiler"},
+    publishDir { "${params.out_dir}/results/intermediate/${meta.id.tokenize('.')[0]}/tbprofiler"},
             mode: 'copy',
             saveAs: { fn -> fn.tokenize('/')[-1] }
     
