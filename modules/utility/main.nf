@@ -1,9 +1,13 @@
 process GENERATE_REPORT{
   
+    label 'process_low'
+
     input:
      path pip_out
      val prefix
 
+    publishDir "${params.out_dir}/results", mode: 'copy', pattern: "${prefix}*.json"
+    
     output:
      path("${prefix}*.json"), emit: json
     

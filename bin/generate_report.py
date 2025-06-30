@@ -506,5 +506,4 @@ if __name__ == "__main__":
 
     options = parser.parse_args()
 
-    # generate('/Users/mohammad.razavi/Projects/website/catalogues/script', 'test')
     generate(options.in_dir, options.prefix)
