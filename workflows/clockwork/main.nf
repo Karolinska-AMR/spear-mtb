@@ -97,7 +97,6 @@ process VARIANT_CALL {
 
     input:
     tuple val(meta), path(reads), path(h37Rv_dir)
-    val pub_dir
          
 
     output:
@@ -105,7 +104,7 @@ process VARIANT_CALL {
     tuple val(meta), path("*cortex.vcf"),optional:true, emit: cortex_vcf
     tuple val(meta), path("*samtools.vcf"),optional:true, emit: samtools_vcf
 
-    publishDir { "${pub_dir}/${meta.id.tokenize('.')[0]}/cryptic"},
+    publishDir { "${params.out_dir}/results/intermediate/${meta.id.tokenize('.')[0]}/cryptic"},
                mode: 'copy',
                pattern: '*.vcf'
 

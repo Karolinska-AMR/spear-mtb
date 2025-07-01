@@ -4,8 +4,8 @@ nextflow.enable.dsl=2
 
 
 include { REMOVE_CONTAM_MERGED} from "$baseDir/workflows/clockwork/main"
-include { VARIANT_CALL as vrc}  from "$baseDir/workflows/clockwork/main"
-include { PREDICT_DST as prd }   from "$baseDir/workflows/clockwork/main"
+include { VARIANT_CALL}  from "$baseDir/workflows/clockwork/main"
+include { PREDICT_DST}   from "$baseDir/workflows/clockwork/main"
 include { MTB_FINDER }           from "$baseDir/workflows/myco_miner/main"
 
 include { TBPROFILER_PROFILE }     from "$baseDir/workflows/tbprofiler/profile/main"
@@ -104,7 +104,7 @@ workflow {
          .map { [ [ id: it[1].simpleName, cat: it[2].simpleName ], it[1], it[2], it[3] ] }
          .set { dst_input_ch }
 
-      PREDICT_DST(dst_input_ch, params.out_dir)
+      PREDICT_DST(dst_input_ch)
 
       //  COLLECT OUTPUT JSONs 
       PREDICT_DST.out.json
