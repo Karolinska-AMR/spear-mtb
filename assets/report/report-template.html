@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link
+      href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css"
+      rel="stylesheet"
+      integrity="sha384-GLhlTQ8iRABdZLl6O3oVMWSktQOp6b7In1Zl3/Jr59b6EGGoI1aFkw7cmDA6j6gD"
+      crossorigin="anonymous"
+    />
+    <link
+      rel="stylesheet"
+      href="https://unpkg.com/bootstrap-table@1.21.2/dist/bootstrap-table.min.css"
+    />
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.2.1/css/all.min.css"
+    />
+    <link
+      href="https://fonts.googleapis.com/css?family=Palanquin"
+      rel="stylesheet"
+    />
+    <style>
+      body {
+        margin: 0;
+        font-family: Palanquin;
+        font-size: 0.9rem;
+        font-weight: 400;
+        line-height: 1.5;
+        color: #858796;
+        text-align: left;
+        background-color: #fff;
+      }
+      p,
+      ul {
+        margin-top: 0.2rem;
+        margin-bottom: 0.2rem;
+      }
+      .selected-row {
+        background-color: aliceblue;
+        color: #d40963;
+        font-weight: 700 !important;
+      }
+      .form-check-input {
+        cursor: pointer;
+      }
+      .help-button {
+        position: fixed;
+        top: 15px;
+        right: 20px;
+        background-color: #7895cb;
+        color: white;
+        border-radius: 50%;
+        cursor: pointer;
+        transition: 0.3s ease;
+        z-index: 10;
+      }
+      .help-button:hover {
+        background-color: #068fff;
+        color: white;
+      }
+      .blink {
+        animation: blink 2s linear infinite;
+        cursor: help;
+      }
+      .blink2 {
+        animation: blink 1s linear infinite;
+        cursor: help;
+      }
+      @keyframes blink2 {
+        25% {
+          opacity: 0.5;
+        }
+        50% {
+          opacity: 0;
+        }
+        75% {
+          opacity: 0.5;
+        }
+      }
+
+      @keyframes blink {
+        25% {
+          opacity: 0.5;
+        }
+        50% {
+          opacity: 0;
+        }
+        75% {
+          opacity: 0.5;
+        }
+      }
+    </style>
+    <title>Spear-MTB Report</title>
+  </head>
+  <body>
+    <nav class="navbar bg-body-tertiary">
+      <div class="container-fluid d-flex">
+        <a class="navbar-brand">
+          <img
+            src="https://raw.githubusercontent.com/xrazmo/spear-mtb/main/assets/report/logo.png"
+            alt=""
+            width="30"
+            height="24"
+            class="d-inline-block align-text-top"
+          />
+          Report on Drug-Resistant <em>Mycobacterium tuberculosis</em>
+        </a>
+      </div>
+    </nav>
+    <div id="content-wrapper" class="d-flex flex-column">
+      <button
+        type="button"
+        class="btn btn-rounded help-button"
+        data-bs-toggle="modal"
+        data-bs-target="#help_modal"
+      >
+        <i class="fa fa-question fa-lg" aria-hidden="true"></i>
+      </button>
+      <div class="container-fluid">
+        <div class="row">
+          <div class="col-12">
+            <div id="lin-card" class="card shadow-sm mb-2">
+              <div class="card-header text-uppercase py-2 bg-white">
+                <div class="card-title">
+                  <i class="fa fa-tasks" aria-hidden="true"></i> Analyzed
+                  samples
+                </div>
+              </div>
+              <div class="card-body">
+                <table
+                  id="lin-tbl"
+                  class="table table-sm text-sm"
+                  data-search="true"
+                  data-search-align="left"
+                  data-search-highlight="true"
+                  data-pagination="true"
+                  data-toggle="table"
+                  data-virtual-scroll="true"
+                >
+                  <thead></thead>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="row">
+          <div class="col-12">
+            <div id="prd-card" class="card shadow-sm mb-2">
+              <div
+                class="card-header text-uppercase py-2 d-flex flex-row align-items-center justify-content-between bg-white"
+              >
+                <div class="card-title">
+                  <i class="fa fa-pills" aria-hidden="true"></i>
+                  drug resistance prediction
+                </div>
+                <div class="selected_id fw-bold"></div>
+                <div>
+                  <div class="form-check form-check-inline form-switch">
+                    <label class="form-check-label text-dark">
+                      Compact table
+                    </label>
+                    <input
+                      id="drugs-switch"
+                      class="form-check-input"
+                      type="checkbox"
+                      role="switch"
+                      data-type="drugs"
+                      checked
+                    />
+                  </div>
+                  <div class="form-check form-check-inline form-switch">
+                    <label class="form-check-label text-dark">
+                      Show mutations
+                    </label>
+                    <input
+                      id="mutaions-switch"
+                      class="form-check-input"
+                      type="checkbox"
+                      role="switch"
+                      data-type="mutations"
+                    />
+                  </div>
+                </div>
+              </div>
+              <div class="card-body">
+                <table
+                  id="prd-tbl"
+                  class="table table-sm text-sm text-center"
+                  data-toggle="table"
+                  data-virtual-scroll="true"
+                ></table>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="row">
+          <div class="col-12">
+            <div id="omu-card" class="card shadow-sm mb-2">
+              <div
+                class="card-header text-uppercase py-2 d-flex flex-row align-items-center justify-content-between bg-white"
+              >
+                <div class="card-title">
+                  <i class="fa-solid fa-triangle-exclamation"></i>
+                  Unverified mutations
+                </div>
+              </div>
+              <div class="card-body">
+                <table
+                  id="uvmu-tbl"
+                  class="table table-sm text-sm"
+                  data-search="true"
+                  data-search-align="left"
+                  data-search-highlight="true"
+                  data-pagination="true"
+                  data-toggle="table"
+                  data-virtual-scroll="true"
+                ></table>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="row">
+          <div class="col-12">
+            <div id="omu-card" class="card shadow-sm mb-2">
+              <div
+                class="card-header text-uppercase py-2 d-flex flex-row align-items-center justify-content-between bg-white"
+              >
+                <div class="card-title">
+                  <i class="fa fa-align-center" aria-hidden="true"></i> Other
+                  mutations
+                </div>
+              </div>
+              <div class="card-body">
+                <table
+                  id="omu-tbl"
+                  class="table table-sm text-sm text-center"
+                  data-toggle="table"
+                  data-virtual-scroll="true"
+                ></table>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div
+      class="modal fade"
+      id="help_modal"
+      tabindex="-1"
+      role="dialog"
+      aria-hidden="true"
+    >
+      <div class="modal-dialog modal-dialog-centered" role="document">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title text-uppercase">
+              <i class="fa fa-question-circle" aria-hidden="true"></i> help
+            </h5>
+          </div>
+          <div class="modal-body">
+            <div class="card-body text-dark">
+              <p>
+                The report is the outcome of running the
+                <a href="https://github.com/xrazmo/spear-mtb" target="_blank">
+                  Spear-MTB</a
+                >
+                pipeline, which has employed the following pipelines in order to
+                arrive at a consensus on drug-resistant
+                <em>Mycobacterium tuberculosis</em> predictions:
+              </p>
+              <ul>
+                <li>
+                  <a
+                    href="https://github.com/jodyphelan/TBProfiler"
+                    target="_blank"
+                    >TB-Profiler</a
+                  >: The list of mutations (i.e., catalogue) is maintained
+                  <a href="https://github.com/jodyphelan/tbdb" target="_blank"
+                    >here</a
+                  >.
+                </li>
+                <li>
+                  <a
+                    href="https://github.com/iqbal-lab-org/clockwork"
+                    target="_blank"
+                    >CRyPTIC</a
+                  >: By defualt, the Spear-MTB is using <em>WHO</em> and
+                  <em>CRyPTIC</em> catalogues that are maintained
+                  <a
+                    href="https://github.com/oxfordmmm/tuberculosis_amr_catalogues"
+                    target="_blank"
+                    >here</a
+                  >.
+                  <!-- <p class="text-info">
+                    <i class="fa fa-circle-info fa-lg" aria-hidden="true"></i>
+                    A list of mutations collected by Fohm will be added soon.
+                  </p> -->
+                </li>
+              </ul>
+
+              <p>The findings are outlined in the subsequent sections:</p>
+              <ul>
+                <li>
+                  <strong class="text-uppercase">analyzed sample</strong>: The
+                  section includes a list of samples that were analyzed, along
+                  with the predicted lineage. To view more information, simply
+                  click on
+                  <i
+                    class="fa fa-circle-down fa-lg text-primary"
+                    aria-hidden="true"
+                  ></i>
+                  besides the desired sample.
+                </li>
+                <li>
+                  <strong class="text-uppercase">
+                    Drug resistance Prediction</strong
+                  >: The table offers evidence for potential drug-resistance in
+                  two veiwing modes: 1- predicted phenotype and 2- a list of
+                  identified mutations. You can toggle between these two modes
+                  by selecting the "SHOW MUTATIONS" switch.
+                  <p>
+                    Moreover, the columns represent different drugs, and the
+                    rows show predicted resistance based on various catalogues.
+                    The cell values indicate:
+                  </p>
+                  <p>In the phenotype view:</p>
+                  <ul>
+                    <li class="text-danger">
+                      <strong class="text-uppercase">R</strong>: Detection of at
+                      least one mutation that could produce resistant phenotype.
+                    </li>
+                    <li class="text-warning">
+                      <strong class="text-uppercase">U</strong>: Detection of no
+                      resistance mutation but at least one mutation with
+                      uncertain significance.
+                    </li>
+                    <li>
+                      <strong>Empty(-)</strong>: No resistance and uncertain
+                      mutations were detected.
+                    </li>
+                  </ul>
+                  <p>In the mutations view:</p>
+                  <ul>
+                    <li>
+                      A list of identified mutations that comply with the rules
+                      in catalogues is presented. The same color scheme as the
+                      phenotype view is utilized to distinguish resistance and
+                      uncertain mutations.
+                    </li>
+                  </ul>
+                </li>
+                <li>
+                  <strong class="text-uppercase"> Unverified mutations</strong>:
+                  Resistance mutations from catalogues that cannot be identified
+                  or evaluated due to inadequate read coverage or the deletion
+                  of the entire locus are listed. In the event of gene deletion,
+                  only the phrase
+                  <em>"Deleted locus/gene: all its potential variations"</em>
+                  will be displayed, instead of listing all resistance mutations
+                  in the catalogues.
+                </li>
+                <li>
+                  <strong class="text-uppercase"> Other mutations</strong>: The
+                  identified mutations with no ties to resistance, referred to
+                  as "sensitive mutations" from the WHO and CRyPTIC catalogues,
+                  are displayed in
+                  <span class="text-success fw-bold">green</span>. Additionally,
+                  novel mutations that do not conform to the rules in the
+                  catalogues but occur in or upstream of the genes in the
+                  catalogues are shown in
+                  <span class="text-secondary fw-bold">grey</span>.
+                </li>
+              </ul>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button
+              type="button"
+              class="btn btn-secondary"
+              data-bs-dismiss="modal"
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.6.1/jquery.min.js"></script>
+    <script
+      src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"
+      integrity="sha384-w76AqPfDkMBDXo30jS1Sgez6pr3x5MlQ1ZAGC+nuZB+EYdgRZgiwxhTBTkF7CXvN"
+      crossorigin="anonymous"
+    ></script>
+    <script
+      src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.11.6/dist/umd/popper.min.js"
+      integrity="sha384-oBqDVmMz9ATKxIep9tiCxS/Z9fNfEXiDAYTujMAeBAsjFuCZSmKbSSUnQlmh/jp3"
+      crossorigin="anonymous"
+    ></script>
+    <script
+      src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.min.js"
+      integrity="sha384-mQ93GR66B00ZXjt0YO5KlohRA5SY2XofN4zfuZxLkoj1gXtW8ANNCe9d5Y3eG5eD"
+      crossorigin="anonymous"
+    ></script>
+    <script src="https://unpkg.com/bootstrap-table@1.21.2/dist/bootstrap-table.min.js"></script>
+    <script
+      src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.2.1/js/all.min.js"
+      integrity="sha512-rpLlll167T5LJHwp0waJCh3ZRf7pO6IT1+LZOhAyP6phAirwchClbTZV3iqL3BMrVxIYRbzGTpli4rfxsCK6Vw=="
+      crossorigin="anonymous"
+      referrerpolicy="no-referrer"
+    ></script>
+    <!--DATASLOT-->
+    <script
+      type="text/javascript"
+      src="https://cdn.jsdelivr.net/gh/xrazmo/spear-mtb@latest/assets/report/main.min.js"
+    ></script>
+  </body>
+</html>
