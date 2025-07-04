@@ -10,17 +10,16 @@ process MERGE_BARACKEN{
     input:
     path tsvs
     
-
+    publishDir "${params.out_dir}/results", mode: 'copy', pattern: "*.mycofinder.out", saveAs: { filename -> "${params.ticket}.merged.mycofinder.tsv" }
+    
     output:
-    path "species_samples.out", emit: tsv
+    path "*.mycofinder.out", emit: tsv
     
     
-    script:
-    
-    
+    script:   
     
     """
-    result_file="species_samples.out"
+    result_file="${params.ticket}.mycofinder.out"
     touch "\$result_file"
     header_added=false
 
@@ -67,7 +66,7 @@ workflow MTB_FINDER{
 
         MERGE_BARACKEN(tsv_ch)
         mtbs_smaples = MERGE_BARACKEN.out.tsv.splitCsv(sep:"\t",header:true)
-                    .filter{row -> row.fraction_total_reads.toDouble() >= 0.95 && row.name == "Mycobacterium tuberculosis"}
+                    .filter{row -> row.fraction_total_reads.toDouble() >= 0.8 && row.name == "Mycobacterium tuberculosis"}
                     .map{it -> [[id:it.sample]]}
         
         mtbs_ch = input_ch.join(mtbs_smaples).map{it->[it[0].id,it[1]]}
@@ -75,4 +74,5 @@ workflow MTB_FINDER{
     emit:
         species_tsvs = MERGE_BARACKEN.out.tsv
         mtbs_ch = mtbs_ch
+    
 }

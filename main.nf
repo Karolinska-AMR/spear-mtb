@@ -1,77 +1,143 @@
 nextflow.enable.dsl=2
 
-include {MAP_READS as mpr} from "$baseDir/workflows/clockwork/main"
-include {REMOVE_CONTAM as rmc} from "$baseDir/workflows/clockwork/main"
-include {VARIANT_CALL as vrc} from "$baseDir/workflows/clockwork/main"
-include {PREDICT_DST as prd} from "$baseDir/workflows/clockwork/main"
-include {MTB_FINDER} from "$baseDir/workflows/myco_miner/main"
-
-include {TBPROFILER_PROFILE as tbp} from "$baseDir/workflows/tbprofiler/profile/main"
-include {GENERATE_REPORT as grp} from "$baseDir/modules/utility/main"
+// Include workflows and modules
 
 
-params.input_dir = ""
+include { REMOVE_CONTAM_MERGED} from "$baseDir/workflows/clockwork/main"
+include { VARIANT_CALL}  from "$baseDir/workflows/clockwork/main"
+include { PREDICT_DST}   from "$baseDir/workflows/clockwork/main"
+include { MTB_FINDER }           from "$baseDir/workflows/myco_miner/main"
 
-def assets_dir = "${baseDir}/assets"
-def h37Rv_dir = "${assets_dir}/Ref.H37Rv";
-def out_dir = params.out_dir ?: "${baseDir}/out"
-def k2_db='k2_myco'
-workflow{
+include { TBPROFILER_PROFILE }     from "$baseDir/workflows/tbprofiler/profile/main"
+include { TBPROFILER_PROFILE_EXTERNAL } from "$baseDir/modules/tbprofiler_external/main"
+include { GENERATE_REPORT }        from "$baseDir/modules/utility/main"
+include { ARCHIVE_RAW_SEQ }       from "$baseDir/modules/utility/main"
 
+// PARAMETERS
+params.input_dir        = ""
+params.out_dir          = ""
+params.k2_db            = "k2_myco"
+params.assets_dir       = "${baseDir}/assets"
+params.archive_input    = params.archive_input ?: false
+params.archive_dir      =params.archive_dir ?: ""
+params.ticket = params.ticket ?: "ticket"
+params.skip_cryptic = params.skip_cryptic in [true, 'true', ''] ? true : false
 
-   file(out_dir).mkdir()
+def h37Rv_dir     = "${params.assets_dir}/Ref.H37Rv"
+def kraken2_db    = "${params.assets_dir}/kraken2/${params.k2_db}"
 
-   reads_ch = Channel.fromFilePairs("${params.input_dir}/*_{1,2}.fastq.gz")
-                     .concat(Channel.fromFilePairs("${params.input_dir}/*/*_{1,2}.fastq.gz"));
+workflow {
 
-   ref_fa = Channel.fromPath("${assets_dir}/Ref.remove_contam/*.fa");
-   
-   //find species and continue with MTBs
-   
-    kraken2_db = "${assets_dir}/kraken2/${k2_db}"
-    MTB_FINDER(reads_ch,kraken2_db)
-    input_ch = MTB_FINDER.out.mtbs_ch
-    input_ch.view()
-   // Running TBPROFILER
-   tbpr_ch = input_ch.map{it->[[id:"${it[0]}.tbprofiler",single_end:false],it[1]]}
-   tbp(tbpr_ch)
+    // Ensure output directory exists
+    file(params.out_dir).mkdir()
 
-   // Running CRyPTIC workflow
-   contam_ref_ch = Channel.fromPath("${assets_dir}/Ref.remove_contam/*.tsv");
-   cryptic_ch =  input_ch.combine(ref_fa).map{it->[[id:"${it[0]}.cryptic"],it[1],it[2]]}
-   
-   mpr(cryptic_ch) 
-   rmc(mpr.out.sam.combine(contam_ref_ch))
-   vrc(rmc.out.reads,h37Rv_dir)
-   
-   
-   vrc.out.final_vcf.map{it-> it[1]}.flatten().collectFile(storeDir:out_dir)
+    // Check archive parameters
+   if (params.archive_input && !params.archive_dir) {
+      error "archive_dir must be set if archive_input is true"
+   }
 
-   catalog_ch = Channel.fromPath("${assets_dir}/catalogues/*/*.csv")
-   refpkl_ch = Channel.fromPath("${assets_dir}/catalogues/*/*.gz")
+    //  READ INPUTS 
+    Channel
+        .fromFilePairs("${params.input_dir}/*_{1,2}.{fq.gz,fastq.gz}")
+        .concat(Channel.fromFilePairs("${params.input_dir}/*/*_{1,2}.{fq.gz,fastq.gz}"))
+        .set { input_reads_ch }
+      
 
-   ch = vrc.out.final_vcf.combine(catalog_ch).combine(refpkl_ch)
-           .map{it->[[id:it[1].simpleName,cat:it[2].simpleName],it[1],it[2],it[3]]}
-   prd(ch)
+   input_reads_ch
+        .count()
+        .map{count ->
+            if (count==0) {
+                error "No input data provided. Please check the input directory: ${params.input_dir}"
+            }
+        }
     
-    
-   ser_ch = prd.out.effects
-          .concat(prd.out.mutations)
-          .concat(prd.out.variants)
-          .concat(prd.out.json)
-          .concat(tbp.out.txt)
-          .concat(tbp.out.json)
-          .map{it->it[1]}
-          .concat(MTB_FINDER.out.species_tsvs)
-          .flatten()
-          .collectFile(storeDir:out_dir)
+    //  SPECIES FILTERING: Making sure we only process MTB genomes 
+    MTB_FINDER(input_reads_ch, kraken2_db)
+    MTB_FINDER.out.mtbs_ch.set { mtb_reads_ch }
 
-    grp(ser_ch.collect(),"${assets_dir}/report/report-template.html")
-    grp.out.html.collectFile(storeDir:out_dir)
-} 
+    //  TBProfiler 
+    mtb_reads_ch.map { [ [ id: "${it[0]}.tbdb.tbprofiler", single_end: false ], it[1] ] }
+                .set { tbprofiler_input_ch }
 
-workflow generate_report{
-    json_ch = Channel.fromPath("${out_dir}/*.json").collect()
-    grp(json_ch,"${assets_dir}/report/report-template.html")
-    grp.out.html.collectFile(storeDir:out_dir)
+    TBPROFILER_PROFILE(tbprofiler_input_ch)
+
+    // TBProfiler External Catalogue
+    TBPROFILER_PROFILE.out.bam.map { [ [ id: "${it[1].simpleName}.${params.catalogue_version}.tbprofiler" ], it[1] ] }
+                .combine(Channel.fromPath("${params.assets_dir}/catalogues/NC_000962.3/who2023v07"))
+                .set { tbprofiler_external_ch }
+
+    TBPROFILER_PROFILE_EXTERNAL(tbprofiler_external_ch)
+
+    //  CRYPTIC WORKFLOW 
+   if (!params.skip_cryptic) {
+      Channel.fromPath("${params.assets_dir}/Ref.remove_contam/*.tsv")
+            .set { contam_tsv_ch }
+
+      Channel.fromPath("${params.assets_dir}/Ref.remove_contam/*.fa")
+            .set { contam_fa_ch }
+
+      mtb_reads_ch
+         .combine(contam_tsv_ch)
+         .combine(contam_fa_ch)
+         .map { [ [ id: "${it[0]}.cryptic" ], it[1], it[2], it[3] ] }
+         .set { cryptic_input_ch }
+
+      REMOVE_CONTAM_MERGED(cryptic_input_ch)
+
+      //  VARIANT CALLING 
+      REMOVE_CONTAM_MERGED.out.reads
+            .combine(Channel.fromPath(h37Rv_dir))
+            .set { variant_call_input_ch }
+
+      VARIANT_CALL(variant_call_input_ch)
+
+      //  DST PREDICTION 
+      Channel.fromPath("${params.assets_dir}/catalogues/*/*.csv")
+            .set { catalog_csv_ch }
+
+      Channel.fromPath("${params.assets_dir}/catalogues/*/*.gz")
+            .set { refpkl_gz_ch }
+
+      VARIANT_CALL.out.final_vcf
+         .combine(catalog_csv_ch)
+         .combine(refpkl_gz_ch)
+         .map { [ [ id: it[1].simpleName, cat: it[2].simpleName ], it[1], it[2], it[3] ] }
+         .set { dst_input_ch }
+
+      PREDICT_DST(dst_input_ch)
+
+      //  COLLECT OUTPUT JSONs 
+      PREDICT_DST.out.json
+         .concat(TBPROFILER_PROFILE.out.json)
+         .concat(TBPROFILER_PROFILE_EXTERNAL.out.json)
+         .map { it[1] }
+         .flatten()
+         .set { all_jsons_ch }
+   } else {
+      // If not running cryptic, just collect TBProfiler outputs
+      TBPROFILER_PROFILE.out.json
+         .concat(TBPROFILER_PROFILE_EXTERNAL.out.json)
+         .map { it[1] }
+         .flatten()
+         .set { all_jsons_ch }
+   }
+
+    //  ARCHIVE IF NEEDED 
+    if (params.archive_input) {
+        mtb_reads_ch.map { it[0] }
+                    .join(PREDICT_DST.out.json.concat(TBPROFILER_PROFILE.out.json).map { it[0].id.split("\\.")[0] })
+                    .set { archived_reads_ch }
+
+        ARCHIVE_RAW_SEQ(archived_reads_ch, params.archive_dir, 'mv')
+    }
+
+    //  GENERATE REPORT 
+    GENERATE_REPORT(all_jsons_ch.collect(), params.ticket)
+
+}
+
+//  OPTIONAL: Finalize 
+workflow.onComplete {
+   println "Pipeline completed. Output available at: ${params.out_dir}"
+   println "Ticket: ${params.ticket}"
 }

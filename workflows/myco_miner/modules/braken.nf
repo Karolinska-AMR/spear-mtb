@@ -2,9 +2,7 @@ process BRACKEN_BRACKEN {
     tag "$meta.id"
     label 'process_low'
 
-    // WARN: Version information not provided by tool on CLI.
-    // Please update version string below when bumping container versions.
-   // conda "bioconda::bracken=2.7"
+
     container "${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?
         'https://depot.galaxyproject.org/singularity/bracken:2.7--py39hc16433a_0':
         'quay.io/biocontainers/bracken:2.7--py39hc16433a_0' }"
@@ -24,8 +22,6 @@ process BRACKEN_BRACKEN {
     def args = task.ext.args ?: ""
     def prefix = task.ext.prefix ?: "${meta.id}"
     bracken_report = "${prefix}.braken-${level}.tsv"
-    // WARN: Version information not provided by tool on CLI.
-    // Please update version string below when bumping container versions.
     def VERSION = '2.7'
     """
     bracken \\

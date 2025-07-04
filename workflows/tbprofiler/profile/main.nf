@@ -6,10 +6,10 @@ process TBPROFILER_PROFILE {
 	maxRetries 2
 	errorStrategy { task.exitStatus in 137..140 ? 'retry' : 'ignore' }
 	 
-    conda (params.enable_conda ? "bioconda::tb-profiler=5.0.1-pyhdfd78af_1" : null)
+    conda (params.enable_conda ? "bioconda::tb-profiler=6.4.0" : null)
     container "${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?
-        'https://depot.galaxyproject.org/singularity/tb-profiler:5.0.1--pyhdfd78af_1' :
-        'quay.io/biocontainers/tb-profiler:5.0.1--pyhdfd78af_1' }"
+        'https://depot.galaxyproject.org/singularity/tb-profiler:6.4.0--pyhdfd78af_0' :
+        'quay.io/biocontainers/tb-profiler:6.4.0--pyhdfd78af_0' }"
 
     input:
     tuple val(meta), path(reads)
@@ -22,6 +22,11 @@ process TBPROFILER_PROFILE {
     tuple val(meta), path("results/*.txt") , emit: txt, optional: true
     tuple val(meta), path("vcf/*.vcf.gz")  , emit: vcf
     path "versions.yml"                    , emit: versions
+
+    publishDir { "${params.out_dir}/results/intermediate/${meta.id.tokenize('.')[0]}/tbprofiler"},
+            mode: 'copy',
+            saveAs: { fn -> fn.tokenize('/')[-1] }
+
 
     when:
     task.ext.when == null || task.ext.when

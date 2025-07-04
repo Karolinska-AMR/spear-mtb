@@ -49,6 +49,12 @@ process KRAKEN2_KRAKEN2 {
 
     $compress_reads_command
 
+      ##  reshub addition, free the SSD disk ASAP
+    if [[ ${params.clean_now} == true ]]; then
+      rm -f  ${prefix}.log
+    fi
+
+
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":
         kraken2: \$(echo \$(kraken2 --version 2>&1) | sed 's/^.*Kraken version //; s/ .*\$//')
