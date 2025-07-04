@@ -25,7 +25,7 @@ params.skip_cryptic = params.skip_cryptic in [true, 'true', ''] ? true : false
 
 def h37Rv_dir     = "${params.assets_dir}/Ref.H37Rv"
 def kraken2_db    = "${params.assets_dir}/kraken2/${params.k2_db}"
-
+def template_report = "${params.assets_dir}/report/report-template.html"
 workflow {
 
     // Ensure output directory exists
@@ -132,7 +132,7 @@ workflow {
     }
 
     //  GENERATE REPORT 
-    GENERATE_REPORT(all_jsons_ch.collect(), params.ticket)
+    GENERATE_REPORT(all_jsons_ch.collect(), params.ticket, template_report)
 
 }
 

@@ -492,7 +492,7 @@ def classify_tb_resistance(resistant_drugs):
         return 'other'
 
 
-def generate(in_dir, prefix):
+def generate(in_dir,thtml, prefix):
     report_dict = { "catalogs_repo": get_catalog_repo()}
     samples = {}
     collect_tbprofilers(in_dir, samples)
@@ -508,16 +508,27 @@ def generate(in_dir, prefix):
 
     with open(f"{prefix}.json", 'w') as hdl:
         hdl.write(djson)
+    
+    if thtml:
+        with open(thtml, 'r') as f:
+            html_content = f.read()
+        # Insert the JSON string into the HTML at <!--DATASLOT-->
+        script_tag = f'<script>const data_rw = {djson};</script>'
+        html_content = html_content.replace('<!--DATASLOT-->', script_tag)
+        with open(f"{prefix}_spear-mtb_report.html", 'w') as f:
+            f.write(html_content)
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--in_dir", required=True,
-                        help="Iput directory containing results of ")
+                        help="Input directory containing results of ")
+    parser.add_argument("--template_html", required=False,
+                        help="Path to the HTML template file")
 
     parser.add_argument("--prefix", required=True,
                         help="Ticket number")
 
     options = parser.parse_args()
 
-    generate(options.in_dir, options.prefix)
+    generate(options.in_dir,options.template_html, options.prefix)

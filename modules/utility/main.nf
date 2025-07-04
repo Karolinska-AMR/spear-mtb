@@ -5,15 +5,17 @@ process GENERATE_REPORT{
     input:
      path pip_out
      val prefix
+     path template
 
-    publishDir "${params.out_dir}/results", mode: 'copy', pattern: "${prefix}*.json"
+    publishDir "${params.out_dir}/results", mode: 'copy', pattern: "${prefix}*.{json,html}"
     
     output:
      path("${prefix}*.json"), emit: json
+     path("${prefix}*.html"), emit: html
     
     script:
     """
-     python ${baseDir}/bin/generate_report.py --in_dir . --prefix $prefix
+     python ${baseDir}/bin/generate_report.py --in_dir . --template_html ${template} --prefix $prefix
     """
 }
 
