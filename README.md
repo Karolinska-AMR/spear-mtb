@@ -1,4 +1,4 @@
-## <img src="https://raw.githubusercontent.com/xrazmo/spear-mtb/main/assets/report/logo.png" width="50" height="50" > SPEAR-MTB: en*S*emble *P*r*E*diction of *A*ntibiotic *R*esistance in *M*ycobacterium *T*u*B*erculosis
+## <img src="https://raw.githubusercontent.com/xrazmo/spear-mtb/main/assets/report/img/logo.png" width="50" height="50" > SPEAR-MTB: en*S*emble *P*r*E*diction of *A*ntibiotic *R*esistance in *M*ycobacterium *T*u*B*erculosis
 
 This repository has employed the following pipelines in order to arrive at a consensus on drug-resistant _Mycobacterium tuberculosis_ predictions:
 
@@ -10,18 +10,19 @@ This repository has employed the following pipelines in order to arrive at a con
 > &#x26A0; **Warning:**
 > The spear-MTB pipeline is tested using Illumina paired-end reads and on Unix-based system having Singularity.
 
+## Prerequisites
+
+- **Nextflow**
+- **Conda**
+- **Singularity**
+-**git** 
+
 ## **Installation**
 
-Befor running the pipeline, please ensure that you have the following programs installed:
-
-- Nextflow
-- Singularity
-- conda
-
-After the successful installations, proceed with running the following commands:
+After the successful installations of prerequisites, proceed with running the following commands:
 
 ```
-git clone https://github.com/xrazmo/spear-mtb.git
+git clone https://github.com/Karolinska-AMR/spear-mtb.git
 cd ./spear-mtb | chmod +x ./setup.sh | ./setup.sh
 ```
 
@@ -29,48 +30,103 @@ These commands perform the following steps:
 
 - Downloading the repository from Github.
 - Creating a conda environment named _spear-mtb_.
-- Downloading and extracting the precompiled assets, which encompasses indexed genomes, the reference H37rv, mutations catalogues, and a KRAKEN2 database containing genomes belong to _Mycobacteriaceae_ family.
+- Downloading and extracting the precompiled assets, which encompasses indexed genomes, the reference H37rv, and a KRAKEN2 database containing genomes belong to _Mycobacteriaceae_ family.
 
-For updating mutation catalogues run the following command:
-
-```
-./setup.sh -u
-```
 
 ## **Usage**
 
 ### - Nextflow config file:
 
-Before running the pipeline, please review and modify the configuration file (nextflow.config) to suit your specific requirements and preferences. Note that the current configuration file includes predefined profiles and resource allocation designed for the RACKHAM cluster at UPPMAX.
+Before running the pipeline, please review and modify the configuration file (nextflow.config) to suit your specific requirements and preferences. Note that the current configuration file includes predefined profiles and resource allocation.
 
-### - Running the pipeline:
+### Basic Usage
 
-```
-Usage:
-  spear-mtb.sh [-t <tmp_dir>] [-c <config_file>] [-a <assets_dir>] [-p <prefix>] [-f <profile>] [-o <out_dir>] <input_directory>
-
-Options:
-  -t        Temporary directory: Set the location for temporary files (default: PARENT_DIR/.tmp)
-  -c        Config file: Specify a Nextflow configuration file (default: nextflow.config)
-  -a        Assets directory: Specify the assets directory containing reference genomes and catalogues (default: SCRIPT_DIR/assets)
-  -p        Prefix: Customize the name of the trace file produced by Nextflow (default: date-time).
-  -f        Profile: Specify the profile already defined in your config file (default: 'slurm')
-  -o        Output directory: output directory containing results: vcf, csv, json, html files (default: PARENT_DIR/out)
-
-Arguments:
-  <input_directory>            Input directory: specify a directory containing Illumina paired-end reads or folders containing them.
-
-Examples:
-
-  spear-mtb.sh path/to/input_data
-
-  spear-mtb.sh -t /tmp -c custom.config -a /path/to/assets -p myprefix -f slurm -o /path/to/output /path/to/input_data
-
-
+```bash
+./spear-mtb.sh --input_dir <path> --output_dir <path>
 ```
 
-## **Report**
+### Full Command Syntax
 
-SPEAR-MTB integrates predictions based on different pipelines and catalogues in an interactive offline HTML file, which will be delivered to your specified output directory. For more information, please refer to the help window within the report.
+```bash
+./spear-mtb.sh --input_dir <path> --output_dir <path> [OPTIONS]
+```
 
-<img src="https://raw.githubusercontent.com/xrazmo/spear-mtb/main/assets/report/report.jpg" >
+## Parameters
+
+### Required Parameters
+
+| Parameter | Short | Description |
+|-----------|-------|-------------|
+| `--input_dir` | `-i` | Input directory path containing the data to process |
+| `--output_dir` | `-o` | Output directory path where results will be saved |
+
+### Optional Parameters
+
+| Parameter | Short | Description | Default |
+|-----------|-------|-------------|---------|
+| `--working_dir` | `-w` | Working directory for temporary files | `./[source_dir]/.tmp` |
+| `--config_file` | `-c` | Nextflow configuration file | `./nextflow.config` |
+| `--assets_dir` | `-a` | Assets directory path | `./assets` |
+| `--profile` | `-p` | Nextflow profile to use | `slurm` |
+| `--archive_dir` | `-A` | Directory for archiving input files | None |
+| `--resume` | `-r` | Resume previous pipeline run | `false` |
+| `--skip_cryptic` | `-s` | Skip cryptic workflow steps | `false` |
+| `--ticket` | `-t` | Ticket ID for tracking | Auto-generated |
+| `--singularity_cache` | `-S` | Singularity cache directory | None |
+| `--help` | `-h` | Show help message | - |
+
+## Examples
+
+### Basic execution:
+```bash
+./spear-mtb.sh --input_dir /data/input --output_dir /data/output
+```
+
+### With custom profile and resume:
+```bash
+./spear-mtb.sh -i /data/input -o /data/output --profile slurm --resume
+```
+
+### Full parameter example:
+```bash
+./spear-mtb.sh \
+  --input_dir /data/input \
+  --output_dir /data/output \
+  --working_dir /tmp/work \
+  --config_file /path/to/custom.config \
+  --profile slurm \
+  --archive_dir /data/archive \
+  --singularity_cache /cache/singularity \
+  --ticket ABC12345 \
+  --resume
+```
+
+## Output Structure
+
+The pipeline generates a structured output directory with the following organization:
+
+```
+{output-directory}/
+├── logs/                                    # Execution logs and traces
+│   ├── {ticket}_trace.txt                  # Nextflow execution trace
+│   ├── {ticket}_timeline.html              # Timeline visualization
+│   └── {ticket}_report.html                # Execution report
+└── results/                                 # Analysis results
+    ├── {ticket}.json                       # Summary results in JSON format
+    ├── {ticket}_spear-mtb_report.html      # Comprehensive HTML report
+    └── intermediate/                        # Per-sample analysis results
+        └── {fastq_file_name}/              # Individual sample directory
+            ├── cryptic/*                    # CRyPTIC pipeline results
+            └── tbprofiler/*                 # TB-Profiler pipeline results
+              
+```
+
+### Key Output Files
+
+- **`{ticket}.json`**: Machine-readable summary of all results
+- **`{ticket}_spear-mtb_report.html`**: Interactive HTML report with visualizations
+- **`logs/{ticket}_*`**: Nextflow execution logs, traces, and performance metrics
+- **`intermediate/{sample}/cryptic/`**: CRyPTIC pipeline outputs for drug resistance analysis
+- **`intermediate/{sample}/tbprofiler/`**: TB-Profiler results for genotype-phenotype predictions
+
+> **Note**: `{ticket}` represents your unique run identifier, and `{fastq_file_name}` corresponds to each input sample processed.
