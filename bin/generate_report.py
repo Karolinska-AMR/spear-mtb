@@ -242,6 +242,8 @@ def collect_tbprofilers(rep_dir, report_dict):
             missing_locus = [convert_gene_locus(g) for g in deleted_genes]
             miss_ptr = report_json["qc"]["missing_positions"]
             for mis in miss_ptr:
+                depth = mis['depth']
+                pos = mis['pos']
                 for annot in mis['annotation']:
                     locus = annot['gene']
                     # The gene is deleted no need to list related mutations as unverified
@@ -249,10 +251,22 @@ def collect_tbprofilers(rep_dir, report_dict):
                         continue
 
                     var = annot["variant"]
-                    key = f"{gene}_{var}"
+                    key = f"{gene}_{var}_{catalog}"
                     if key not in ptr_unver:
-                        ptr_unver[key] = {'catalog': catalog, "drug": annot["drug"].upper(),
-                                        "gene": convert_gene_locus(locus, True), "locus": locus, "variant": var}
+                        ptr_unver[key] = {
+                            'catalog': catalog,
+                            "depth": depth,
+                            "pos": pos,
+                            "drug": annot.get("drug", "").upper(),
+                            "gene": convert_gene_locus(locus, True),
+                            "locus": locus,
+                            "variant": var,
+                            "effect": annot.get("effect"),
+                            "grade": annot.get("grade"),
+                            "confidence": annot.get("confidence"),
+                            "comment": annot.get("comment"),
+                            "prediction": annot.get("prediction"),
+                        }
 
     return report_dict
 
